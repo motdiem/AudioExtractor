@@ -79,3 +79,16 @@ button.link:hover { text-decoration: underline; }
 }
 .seg button[aria-checked="true"] { background: var(--accent); color: var(--accent-fg); }
 .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Batch summary: the failed files, scrolling if there are many. */
+#summary { gap: 4px; }
+.failures {
+    list-style: none; margin: 4px 0 0; padding: 0; width: 100%;
+    max-height: 96px; overflow-y: auto; text-align: left; font-size: 0.85rem;
+    user-select: text; -webkit-user-select: text;
+}
+.failures:empty { display: none; }
+.failures li { padding: 3px 0; border-top: 1px solid var(--line); }
+.failures b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.failures span { color: var(--muted); }
+#summary .actions { flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 4px 12px; margin-top: 6px; }

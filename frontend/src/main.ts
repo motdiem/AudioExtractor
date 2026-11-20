@@ -4,16 +4,22 @@ import * as Extract from "../bindings/github.com/motdiem/AudioExtractor/internal
 // All the logic lives in the Go service. This file only shows its state:
 // the service emits "extract:state" and we swap the matching screen.
 
-type Phase = "idle" | "working" | "done" | "error";
+type Phase = "idle" | "working" | "done" | "error" | "summary";
 interface StateEvent {
     phase: Phase;
+    index: number; // 1-based item position in a batch
+    total: number;
+    done: number; // summary only
+    failed: number;
+    stopped: boolean;
+    failures: { name: string; message: string }[] | null;
     percent: number; // 0-100, or -1 when unknown
     name: string;
     output: string;
     message: string;
 }
 
-const screens = ["idle", "working", "done", "error"] as const;
+const screens = ["idle", "working", "done", "error", "summary"] as const;
 let output = "";
 let messages: Record<string, string> = {};
 
@@ -48,8 +54,42 @@ function showProgress(percent: number) {
     $("progress-text").textContent = known ? t("working.progress", { percent: String(percent) }) : "";
 }
 
+function showCount(e: StateEvent) {
+    const el = $("working-count");
+    el.hidden = e.total < 2;
+    el.textContent = e.total < 2 ? "" : t("working.count", { index: String(e.index), total: String(e.total) });
+}
+
+function showSummary(e: StateEvent) {
+    output = e.output;
+    const title = e.stopped
+        ? t("summary.title.stopped", { n: String(e.index), total: String(e.total) })
+        : e.failed === 0
+          ? t("summary.title.ok", { done: String(e.done) })
+          : t("summary.title.mixed", { done: String(e.done), failed: String(e.failed) });
+    $("summary-title").textContent = title;
+    // The title already says it unless the batch was stopped.
+    $("summary-counts").textContent = e.stopped ? t("summary.counts", { done: String(e.done), failed: String(e.failed) }) : "";
+    const list = $("failures");
+    list.replaceChildren(
+        ...(e.failures ?? []).map((f) => {
+            const li = document.createElement("li");
+            const name = document.createElement("b");
+            name.textContent = f.name;
+            const msg = document.createElement("span");
+            msg.textContent = f.message;
+            li.append(name, msg);
+            return li;
+        }),
+    );
+    $("summary-reveal").hidden = e.done === 0;
+    $("summary-copy").hidden = e.failed === 0;
+    $("summary-copy").textContent = t("copy.details");
+}
+
 function onState(e: StateEvent) {
     if (e.phase === "working") {
+        showCount(e);
         showProgress(e.percent);
         if (!workingShown && workingTimer === undefined) {
             workingTimer = window.setTimeout(() => {
@@ -67,6 +107,9 @@ function onState(e: StateEvent) {
         case "done":
             output = e.output;
             $("done-hint").textContent = t("done.hint", { name: e.name });
+            break;
+        case "summary":
+            showSummary(e);
             break;
         case "error":
             $("error-message").textContent = e.message;
@@ -111,7 +154,7 @@ async function main() {
 
     Events.On("extract:state", (ev: { data: StateEvent }) => onState(ev.data));
 
-    // Clicking the zone: Go opens the picker, then the Save dialog, and emits
+    // Clicking the zone: Go opens the picker, then the Save or folder dialog, and emits
     // the states as it goes. We only need to start it.
     const pick = () => void Extract.Pick();
     drop.addEventListener("click", pick);
@@ -119,23 +162,28 @@ async function main() {
     $("cancel").addEventListener("click", () => void Extract.Cancel());
     // Copy details: Go owns the text (header + raw ffmpeg log) and the native
     // clipboard; we only confirm with "Copied" for a moment.
-    const copy = $<HTMLButtonElement>("copy-details");
-    let copiedTimer: number | undefined;
-    copy.addEventListener("click", async () => {
-        try {
-            await Extract.CopyDetails();
-        } catch {
-            return; // nothing sensible to tell a non-technical user
-        }
-        copy.textContent = t("copy.done");
-        window.clearTimeout(copiedTimer);
-        copiedTimer = window.setTimeout(() => (copy.textContent = t("copy.details")), 2000);
-    });
+    for (const copy of [$<HTMLButtonElement>("copy-details"), $<HTMLButtonElement>("summary-copy")]) {
+        let copiedTimer: number | undefined;
+        copy.addEventListener("click", async () => {
+            try {
+                await Extract.CopyDetails();
+            } catch {
+                return; // nothing sensible to tell a non-technical user
+            }
+            copy.textContent = t("copy.done");
+            window.clearTimeout(copiedTimer);
+            copiedTimer = window.setTimeout(() => (copy.textContent = t("copy.details")), 2000);
+        });
+    }
     $("again").addEventListener("click", () => show("idle"));
-    $("reveal").addEventListener("click", async () => {
-        await Extract.Reveal(output);
-        show("idle");
-    });
+    $("summary-again").addEventListener("click", () => show("idle"));
+    // The first output is selected, which opens the destination folder.
+    for (const id of ["reveal", "summary-reveal"]) {
+        $(id).addEventListener("click", async () => {
+            await Extract.Reveal(output);
+            show("idle");
+        });
+    }
 }
 
 main();

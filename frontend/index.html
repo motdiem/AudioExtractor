@@ -26,6 +26,7 @@
 
     <section id="working" class="screen" hidden>
         <p class="title" data-i18n="working.title"></p>
+        <p class="hint" id="working-count" hidden></p>
         <div class="bar" id="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="bar-fill" id="bar-fill"></div></div>
         <p class="hint" id="progress-text"></p>
         <div class="actions">
@@ -40,6 +41,18 @@
         <div class="actions">
             <button id="reveal" class="primary" type="button" data-i18n="done.show"></button>
             <button id="again" class="link" type="button" data-i18n="done.again"></button>
+        </div>
+    </section>
+
+    <!-- End of a batch: counts, then each failed file with its one-sentence message. -->
+    <section id="summary" class="screen" hidden>
+        <p class="title" id="summary-title"></p>
+        <p class="hint" id="summary-counts"></p>
+        <ul class="failures" id="failures"></ul>
+        <div class="actions">
+            <button id="summary-reveal" class="primary" type="button" data-i18n="done.show"></button>
+            <button id="summary-copy" class="link" type="button" data-i18n="copy.details"></button>
+            <button id="summary-again" class="link" type="button" data-i18n="done.again"></button>
         </div>
     </section>
 
