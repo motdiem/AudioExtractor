@@ -28,7 +28,11 @@ func runFFmpeg(ctx context.Context, bin string, args ...string) (string, error) 
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &out
-	err := cmd.Run()
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+	killWithUs(cmd.Process)
+	err := cmd.Wait()
 	return out.String(), err
 }
 
@@ -111,6 +115,7 @@ func runWithProgress(ctx context.Context, bin string, onProgress func(outTime ti
 	if err := cmd.Start(); err != nil {
 		return "", err
 	}
+	killWithUs(cmd.Process)
 	// Read until ffmpeg closes stdout (it exited or was killed), then Wait.
 	sc := bufio.NewScanner(stdout)
 	for sc.Scan() {
@@ -163,7 +168,8 @@ func extract(ctx context.Context, bin, src, dest string, f Format, onProgress fu
 	}
 	tmpPath := tmp.Name()
 	tmp.Close()
-	defer os.Remove(tmpPath) // no-op after a successful rename
+	defer os.Remove(tmpPath)     // no-op after a successful rename
+	_ = setHidden(tmpPath, true) // Windows; best effort
 
 	info, err := probe(ctx, bin, src)
 	log = info.log
@@ -193,7 +199,10 @@ func extract(ctx context.Context, bin, src, dest string, f Format, onProgress fu
 		}
 	}
 	args := append([]string{"-y", "-i", src, "-vn", "-sn", "-dn", "-map", "0:a:0"}, codecArgs...)
-	args = append(args, "-f", container, tmpPath)
+	// -truncate 0: open the (empty) temp file without truncating it. On
+	// Windows, truncating a hidden file fails with "access denied"; nothing
+	// changes elsewhere.
+	args = append(args, "-truncate", "0", "-f", container, tmpPath)
 
 	report := func(outTime time.Duration, end bool) {
 		if onProgress == nil {
@@ -226,6 +235,10 @@ func extract(ctx context.Context, bin, src, dest string, f Format, onProgress fu
 		return log, KindUnreadable, fmt.Errorf("%s is incomplete", filepath.Base(src))
 	}
 	_, statErr := os.Stat(dest)
+	// The rename keeps attributes: the output must not come out hidden.
+	if err := setHidden(tmpPath, false); err != nil {
+		return log, KindFailed, err
+	}
 	if err := os.Rename(tmpPath, dest); err != nil {
 		kind := classifyWriteError(err, statErr == nil)
 		if kind == KindFailed {
