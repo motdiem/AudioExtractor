@@ -1,0 +1,54 @@
+version: '3'
+
+vars:
+  APP_NAME: "AudioExtractor"
+  BIN_DIR: "bin"
+  PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
+  VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
+  # Target OS for build/package/run. Defaults to the host OS, and is overridden
+  # by `wails3 build GOOS=...` (or the GOOS env var) for cross-compilation. The
+  # tasks below dispatch to the matching platform Taskfile via this variable.
+  GOOS: '{{.GOOS | default OS}}'
+
+includes:
+  common: ./build/Taskfile.yml
+  windows: ./build/windows/Taskfile.yml
+  darwin: ./build/darwin/Taskfile.yml
+
+tasks:
+  build:
+    summary: Builds the application
+    cmds:
+      - task: "{{.GOOS}}:build"
+
+  package:
+    summary: Packages a production build of the application
+    cmds:
+      - task: "{{.GOOS}}:package"
+
+  run:
+    summary: Runs the application
+    cmds:
+      - task: "{{.GOOS}}:run"
+
+  dev:
+    summary: Runs the application in development mode
+    cmds:
+      - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+
+  release:
+    summary: Builds the distributable artifacts into dist/ (run from a Mac)
+    desc: |
+      dist/AudioExtractor-mac.zip  universal (arm64+amd64), ad-hoc-signed .app
+      dist/AudioExtractor.exe      Windows x64, single file, no CGO
+    cmds:
+      - rm -rf dist
+      - mkdir -p dist
+      - task: darwin:package:universal
+      - ditto -c -k --keepParent "{{.BIN_DIR}}/{{.APP_NAME}}.app" "dist/{{.APP_NAME}}-mac.zip"
+      - task: windows:build
+        vars:
+          ARCH: amd64
+          CGO_ENABLED: "0"
+      - cp "{{.BIN_DIR}}/{{.APP_NAME}}.exe" "dist/{{.APP_NAME}}.exe"
+      - ls -lh dist
