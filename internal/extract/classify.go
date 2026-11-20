@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 	"unicode/utf8"
@@ -16,7 +17,8 @@ import (
 //  1. Go pre-checks: can we open the source, can we create a file next to the
 //     destination? (classifyReadError, classifyWriteError)
 //  2. What ffmpeg says: no audio stream, "moov atom not found", a "partial
-//     file" warning. (logSaysInputBroken, logSaysPartial, classifyWriteLog)
+//     file" warning, read from its diagnostic lines only. (diagnostics,
+//     logSaysInputBroken, logSaysPartial, logSaysWriteFailed)
 //  3. What the file looks like, to tell "a video that is damaged or still
 //     being written" from "not a media file at all". (sniff, classifyBroken)
 //
@@ -53,18 +55,14 @@ func classifyWriteError(err error, replacing bool) ErrorKind {
 	return KindFailed
 }
 
-// Phrases in ffmpeg's log, lower-cased.
+// Phrases in ffmpeg's log, lower-cased. They are only looked for in
+// ffmpeg's diagnostic lines (see diagnostics): the log also echoes the file
+// paths and the files' metadata, and a folder called "Permission denied
+// tests" must not turn into an error.
 var (
 	brokenInputPhrases = []string{
 		"invalid data found when processing input",
 		"moov atom not found",
-	}
-	// ffmpeg exits 0 on a file cut off after its header (a "faststart" MP4)
-	// and happily writes the part it could read. We do not want to hand the
-	// user half a meeting as if it were all of it.
-	partialPhrases = []string{
-		"partial file",
-		"corrupt input packet",
 	}
 	writeFailurePhrases = []string{
 		"no space left on device",
@@ -73,6 +71,43 @@ var (
 		"disk quota exceeded",
 	}
 )
+
+// partialRe matches the exact diagnostics ffmpeg prints when it runs out of
+// data in a file it could open. ffmpeg exits 0 on a file cut off after its
+// header (a "faststart" MP4) and happily writes the part it could read. We
+// do not want to hand the user half a meeting as if it were all of it.
+//
+// Every one of them is a log line of its own that starts with the
+// "[component @ 0x...]" prefix, which is what keeps a path or a title such as
+// "Partial file reviews" from matching:
+//
+//	[mov,mp4,m4a,3gp,3g2,mj2 @ 0x...] stream 1, offset 0x27f4: partial file
+//	[in#0/mov,mp4,m4a,3gp,3g2,mj2 @ 0x...] corrupt input packet in stream 1
+//	[mov,mp4,m4a,3gp,3g2,mj2 @ 0x...] Packet corrupt (stream = 1, dts = 36864).
+var partialRe = regexp.MustCompile(`(?mi)^\[[^\]\n]+\] (?:stream \d+, offset 0x[0-9a-f]+: partial file|corrupt input packet in stream \d+|packet corrupt \(stream = \d+)`)
+
+// diagnostics keeps the lines of an ffmpeg log that are ffmpeg talking, not
+// ffmpeg describing the files: the "Input #0 ... from '<path>':" and
+// "Output #0" headers and everything indented under them (metadata, streams)
+// are dropped, and any of paths (the source, the output) is blanked out of
+// the remaining lines ("Error opening input file <path>.").
+func diagnostics(log string, paths ...string) string {
+	var keep []string
+	for _, line := range strings.Split(log, "\n") {
+		trimmed := strings.TrimRight(line, "\r")
+		if trimmed == "" || trimmed[0] == ' ' || trimmed[0] == '\t' ||
+			strings.HasPrefix(trimmed, "Input #") || strings.HasPrefix(trimmed, "Output #") {
+			continue
+		}
+		for _, p := range paths {
+			if p != "" {
+				trimmed = strings.ReplaceAll(trimmed, p, "")
+			}
+		}
+		keep = append(keep, trimmed)
+	}
+	return strings.Join(keep, "\n")
+}
 
 func logHasAny(log string, phrases []string) bool {
 	l := strings.ToLower(log)
@@ -85,13 +120,15 @@ func logHasAny(log string, phrases []string) bool {
 }
 
 // logSaysInputBroken reports whether ffmpeg rejected the input as undecodable.
+// Pass the log through diagnostics first.
 func logSaysInputBroken(log string) bool { return logHasAny(log, brokenInputPhrases) }
 
 // logSaysPartial reports whether ffmpeg read the input but ran out of data.
-func logSaysPartial(log string) bool { return logHasAny(log, partialPhrases) }
+func logSaysPartial(log string) bool { return partialRe.MatchString(log) }
 
 // logSaysWriteFailed reports whether ffmpeg itself could not write the output
-// (the disk filled up mid-extraction, for example).
+// (the disk filled up mid-extraction, for example). Pass the log through
+// diagnostics first.
 func logSaysWriteFailed(log string) bool { return logHasAny(log, writeFailurePhrases) }
 
 // Looks is what sniff concluded about a file's first bytes.

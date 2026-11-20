@@ -186,18 +186,19 @@ func extract(ctx context.Context, bin, src, dest string, f Format, onProgress fu
 	}
 	runLog, err := runWithProgress(ctx, bin, report, args...)
 	log += runLog
+	diag := diagnostics(runLog, src, tmpPath)
 	if err != nil {
 		switch {
 		case ctx.Err() != nil:
 			return log, KindCancelled, ctx.Err()
-		case logSaysWriteFailed(runLog):
+		case logSaysWriteFailed(diag):
 			return log, KindDestinationUnwritable, err
-		case logSaysInputBroken(runLog):
+		case logSaysInputBroken(diag):
 			return log, classifyBroken(src, sniffFile(src)), err
 		}
 		return log, KindFailed, err
 	}
-	if logSaysPartial(runLog) {
+	if logSaysPartial(diag) {
 		// ffmpeg exited 0 but only saw part of the file.
 		return log, KindUnreadable, fmt.Errorf("%s is incomplete", filepath.Base(src))
 	}

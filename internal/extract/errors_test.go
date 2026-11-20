@@ -236,8 +236,14 @@ func TestLogPhrases(t *testing.T) {
 	if !logSaysInputBroken("[mov] moov atom not found\nError: Invalid data found when processing input") {
 		t.Error("moov / invalid data not recognised")
 	}
-	if !logSaysPartial("stream 1, offset 0x16ddf: partial file") {
-		t.Error("partial file not recognised")
+	for _, line := range []string{
+		"[mov,mp4,m4a,3gp,3g2,mj2 @ 0x771cc24000] stream 1, offset 0x27f4: partial file",
+		"[in#0/mov,mp4,m4a,3gp,3g2,mj2 @ 0x771cc1c000] corrupt input packet in stream 1",
+		"[mov,mp4,m4a,3gp,3g2,mj2 @ 0x771cc24000] Packet corrupt (stream = 1, dts = 36864).",
+	} {
+		if !logSaysPartial("Stream mapping:\n" + line + "\nsize=8KiB") {
+			t.Errorf("partial file not recognised in %q", line)
+		}
 	}
 	if !logSaysWriteFailed("av_interleaved_write_frame(): No space left on device") {
 		t.Error("disk full not recognised")
@@ -245,6 +251,47 @@ func TestLogPhrases(t *testing.T) {
 	if logSaysInputBroken("Stream #0:0: Audio: aac") || logSaysPartial("") || logSaysWriteFailed("ok") {
 		t.Error("false positive")
 	}
+}
+
+// The log echoes paths and metadata: words in them are not diagnostics.
+func TestLogPhrasesIgnorePathsAndMetadata(t *testing.T) {
+	src := "/Users/me/Partial file reviews/Permission denied, corrupt input packet in stream 1.mp4"
+	log := `Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '` + src + `':
+  Metadata:
+    title           : A partial file: no space left on device
+    comment         : [x @ 0x1] stream 1, offset 0x1: partial file
+  Duration: 00:00:02.00, start: 0.000000, bitrate: 81 kb/s
+  Stream #0:1[0x2](und): Audio: aac (LC), 44100 Hz, mono, fltp, 69 kb/s (default)
+Output #0, ipod, to '/Users/me/Partial file reviews/.audioextractor-1.part':
+  Metadata:
+    title           : Invalid data found when processing input, moov atom not found
+[out#0/ipod @ 0x1] Error opening output ` + src + `.
+size=      18KiB time=00:00:02.00 bitrate=  75.3kbits/s speed=5.67e+03x`
+	diag := diagnostics(log, src)
+	if logSaysPartial(diag) || logSaysInputBroken(diag) || logSaysWriteFailed(diag) {
+		t.Errorf("false positive from paths or metadata; diagnostics kept:\n%s", diag)
+	}
+}
+
+// End to end: a successful extraction from a folder named "Partial file
+// reviews", of a file whose title mentions a partial file, is a success.
+func TestPartialInPathOrTitleIsNotADamagedFile(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "Partial file reviews")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(dir, "partial file, corrupt input packet.mp4")
+	runFFmpegForTest(t, "-f", "lavfi", "-i", "sine=frequency=440:duration=2",
+		"-f", "lavfi", "-i", "color=c=blue:s=64x64:r=10:d=2", "-c:v", "mpeg4", "-c:a", "aac",
+		"-metadata", "title=Review of a partial file (stream 1, offset 0x10: partial file)",
+		"-movflags", "+faststart", src)
+	dest := filepath.Join(dir, "out.m4a")
+	svc, _ := newService(t, &fakePort{saveTo: dest})
+	res := svc.Run([]string{src}, "m4a")
+	if len(res.Outcomes) != 1 || res.Outcomes[0].Kind != "" {
+		t.Fatalf("outcomes = %+v, want a success", res.Outcomes)
+	}
+	assertM4A(t, dest, "aac")
 }
 
 // --- Copy details ---
