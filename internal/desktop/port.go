@@ -30,7 +30,7 @@ func (p *Port) ChooseInputs(req extract.PickRequest) ([]string, error) {
 	if p.Window != nil {
 		d.AttachToWindow(p.Window)
 	}
-	return d.PromptForMultipleSelection()
+	return noCancelError(d.PromptForMultipleSelection())
 }
 
 func (p *Port) ChooseFolder(req extract.FolderRequest) (string, error) {
@@ -44,7 +44,7 @@ func (p *Port) ChooseFolder(req extract.FolderRequest) (string, error) {
 	if p.Window != nil {
 		d.AttachToWindow(p.Window)
 	}
-	return d.PromptForSingleSelection()
+	return noCancelError(d.PromptForSingleSelection())
 }
 
 func (p *Port) ChooseSaveFile(req extract.SaveRequest) (string, error) {
@@ -57,7 +57,7 @@ func (p *Port) ChooseSaveFile(req extract.SaveRequest) (string, error) {
 	if p.Window != nil {
 		d.AttachToWindow(p.Window)
 	}
-	return d.PromptForSingleSelection()
+	return noCancelError(d.PromptForSingleSelection())
 }
 
 func (p *Port) Reveal(path string) error { return reveal(path) }
