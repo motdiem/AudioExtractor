@@ -93,6 +93,8 @@ To see the box: `build-test-exe.sh --dev`, then `start.ps1 -Env AUDIOEXTRACTOR_F
 
 ## Pitfalls
 
+- **Each `prlctl exec` is slow.** A call costs seconds, and each `ae.ps1` call compiles its small C# helper again under x64 emulation. `e2e.ps1` runs the scripted checks inside the VM in a single call: single file to M4A and MP3, the hidden `.part` file, cancel, Busy, closing the window mid-encode, and `taskkill /F` mid-encode. It prints `PASS`/`FAIL` lines and copies the outputs back for `ffprobe` on the Mac. `-Only close,kill` picks sections.
+- **Don't wait with `pgrep -f "prlctl exec"`.** The waiting shell's own command line contains the pattern, so the loop never ends.
 - **One `prlctl exec` at a time.** While a long `prlctl exec` runs (our first `lock.ps1` held a file for 60 s), other calls queue behind it and seem to hang. Stopping the Mac-side `prlctl` cancels the job in the VM ("Canceling the job..."). `lock.ps1` now starts a hidden, detached PowerShell to hold the file and returns at once. Another agent or person using the VM at the same time has the same effect.
 - **A leftover copy of the app steals the single instance.** A test build from an earlier ticket was still running with a Save dialog open. Every launch of our exe forwarded its arguments to that copy and exited. We don't close windows we didn't open, so `build-test-exe.sh` gives the test build its own ID with `-X main.singleInstanceID=...`.
 - **Raise the app before a screenshot.** Other windows end up on top. `ae front` makes our window topmost for a moment, then normal again.

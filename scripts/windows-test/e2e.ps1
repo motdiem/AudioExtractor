@@ -14,6 +14,8 @@ $D = Join-Path $base 'media'
 $exe = Join-Path $base 'AudioExtractor.exe'
 function AE { & powershell -NoProfile -ExecutionPolicy Bypass -File $ae @args 2>&1 | ForEach-Object { "    $_" } }
 function Check($name, [bool]$ok, $detail = '') { "{0} {1} {2}" -f $(if ($ok) { 'PASS' } else { 'FAIL' }), $name, $detail }
+# Through prlctl and -File, "-Only close,kill" arrives as one string.
+$Only = @($Only | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 function Want($t) { -not $Only -or $Only -contains $t }
 function Parts { @(Get-ChildItem -Force -LiteralPath $D -Filter '.audioextractor-*' -ErrorAction SilentlyContinue) }
 function Ffmpegs { @(Get-Process ffmpeg -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$env:LOCALAPPDATA\AudioExtractor\*" }) }
@@ -23,7 +25,8 @@ function App { Get-Process AudioExtractor -ErrorAction SilentlyContinue | Where-
 function Start-LongMp3($out) {
   Remove-Item -Force -LiteralPath $out -ErrorAction SilentlyContinue
   # Back to the drop zone from whatever screen an earlier step left.
-  if (((AE screen) -join "`n") -notlike "*id='drop'*") { AE click again; AE click summary-again; AE click retry; AE cancel }
+  $s = (AE screen) -join "`n"
+  foreach ($id in 'again', 'summary-again', 'retry') { if ($s -like "*id='$id'*") { AE click $id } }
   AE format MP3; AE click drop; AE open $D long.mp4; AE save $out
   for ($i = 0; $i -lt 40 -and -not (Ffmpegs); $i++) { Start-Sleep -Milliseconds 250 }
   Start-Sleep 1
