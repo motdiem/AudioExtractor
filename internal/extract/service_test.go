@@ -38,16 +38,24 @@ func findFFmpeg(t *testing.T, env string) string {
 
 // fakePort records what the service asked the shell to do.
 type fakePort struct {
-	mu        sync.Mutex
-	picks     []string // returned by ChooseInputs
-	saveTo    string   // returned by ChooseSaveFile; "" = user cancels
-	saveReqs  []SaveRequest
-	revealed  []string
-	copied    []string
-	saveError error
+	mu         sync.Mutex
+	picks      []string // returned by ChooseInputs
+	saveTo     string   // returned by ChooseSaveFile; "" = user cancels
+	saveReqs   []SaveRequest
+	folderTo   string // returned by ChooseFolder; "" = user cancels
+	folderReqs []FolderRequest
+	revealed   []string
+	copied     []string
+	saveError  error
 }
 
 func (f *fakePort) ChooseInputs(PickRequest) ([]string, error) { return f.picks, nil }
+func (f *fakePort) ChooseFolder(r FolderRequest) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.folderReqs = append(f.folderReqs, r)
+	return f.folderTo, nil
+}
 func (f *fakePort) ChooseSaveFile(r SaveRequest) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -296,17 +304,6 @@ func TestVideoWithoutAudioReportsNoAudioAndLeavesNoFile(t *testing.T) {
 		t.Errorf("last event = %+v", last)
 	}
 	noStrays(t, dir)
-}
-
-func TestSeveralFilesAreNotSupportedYet(t *testing.T) {
-	a, b := makeClip(t, "a.mp4", "aac"), makeClip(t, "b.mp4", "aac")
-	port := &fakePort{saveTo: "x.m4a"}
-	svc, _ := newService(t, port)
-
-	res := svc.Run([]string{a, b}, "m4a")
-	if res.Outcomes[0].Kind != KindBatchUnsupported || len(port.saveReqs) != 0 {
-		t.Errorf("result = %+v", res)
-	}
 }
 
 func TestMissingFFmpegIsReportedAsFailure(t *testing.T) {

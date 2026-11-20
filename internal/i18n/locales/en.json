@@ -1,10 +1,10 @@
 {
   "app.title": "AudioExtractor",
-  "drop.title": "Drop an MP4 here",
-  "drop.hint": "or click to choose a file",
+  "drop.title": "Drop recordings or a folder",
+  "drop.hint": "or click to choose files",
   "drop.release": "Release to extract the audio",
   "save.title": "Save the audio as",
-  "pick.title": "Choose a video or audio file",
+  "pick.title": "Choose video or audio files",
   "working.title": "Extracting the audio…",
   "working.hint": "This usually takes a second.",
   "done.title": "Done",
@@ -15,7 +15,6 @@
   "error.again": "Try again",
   "error.failed": "The audio could not be extracted from this file. Try again, or try another file.",
   "error.no-audio": "This video has no sound, so there is nothing to extract. Check that the recording was made with audio.",
-  "error.batch-unsupported": "Please drop one file at a time for now.",
   "save.filter.m4a": "M4A audio",
   "save.filter.mp3": "MP3 audio",
   "format.label": "Output format",
@@ -28,5 +27,12 @@
   "error.destination-unwritable": "The audio could not be saved in that folder. Choose another folder, such as Documents, and check that there is free space.",
   "error.output-locked": "A file with that name is open in another program. Close it, or save under a different name, then try again.",
   "copy.details": "Copy details",
-  "copy.done": "Copied"
+  "copy.done": "Copied",
+  "folder.title": "Choose where to save the audio files",
+  "working.count": "File {index} of {total}",
+  "error.empty-folder": "This folder has no video or audio files. Drop the recordings themselves, or choose another folder.",
+  "summary.title.ok": "{done} files done",
+  "summary.title.mixed": "{done} done, {failed} failed",
+  "summary.title.stopped": "Stopped after {n} of {total}",
+  "summary.counts": "{done} done, {failed} failed"
 }

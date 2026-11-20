@@ -1,10 +1,10 @@
 {
   "app.title": "AudioExtractor",
-  "drop.title": "Déposez un MP4 ici",
-  "drop.hint": "ou cliquez pour choisir un fichier",
+  "drop.title": "Déposez des fichiers ou un dossier",
+  "drop.hint": "ou cliquez pour choisir des fichiers",
   "drop.release": "Relâchez pour extraire l’audio",
   "save.title": "Enregistrer l’audio sous",
-  "pick.title": "Choisissez un fichier vidéo ou audio",
+  "pick.title": "Choisissez des fichiers vidéo ou audio",
   "working.title": "Extraction de l’audio…",
   "working.hint": "Cela prend généralement une seconde.",
   "done.title": "Terminé",
@@ -15,7 +15,6 @@
   "error.again": "Réessayer",
   "error.failed": "L’audio n’a pas pu être extrait de ce fichier. Réessayez, ou essayez un autre fichier.",
   "error.no-audio": "Cette vidéo n’a pas de son, il n’y a donc rien à extraire. Vérifiez que l’enregistrement a été fait avec le son.",
-  "error.batch-unsupported": "Déposez un seul fichier à la fois pour l’instant.",
   "save.filter.m4a": "Audio M4A",
   "save.filter.mp3": "Audio MP3",
   "format.label": "Format de sortie",
@@ -28,5 +27,12 @@
   "error.destination-unwritable": "L’audio n’a pas pu être enregistré dans ce dossier. Choisissez un autre dossier, comme Documents, et vérifiez qu’il reste de la place.",
   "error.output-locked": "Un fichier portant ce nom est ouvert dans un autre programme. Fermez-le, ou enregistrez sous un autre nom, puis réessayez.",
   "copy.details": "Copier les détails",
-  "copy.done": "Copié"
+  "copy.done": "Copié",
+  "folder.title": "Choisissez où enregistrer les fichiers audio",
+  "working.count": "Fichier {index} sur {total}",
+  "error.empty-folder": "Ce dossier ne contient aucun fichier vidéo ou audio. Déposez les enregistrements eux-mêmes, ou choisissez un autre dossier.",
+  "summary.title.ok": "{done} fichiers terminés",
+  "summary.title.mixed": "{done} réussis, {failed} en échec",
+  "summary.title.stopped": "Arrêté après {n} sur {total}",
+  "summary.counts": "{done} réussis, {failed} en échec"
 }

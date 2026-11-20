@@ -7,6 +7,9 @@ package extract
 type Port interface {
 	// ChooseInputs opens the native file picker and returns the chosen paths.
 	ChooseInputs(req PickRequest) ([]string, error)
+	// ChooseFolder opens the native folder dialog (batches) and returns the
+	// chosen folder.
+	ChooseFolder(req FolderRequest) (string, error)
 	// ChooseSaveFile opens the native Save dialog and returns the chosen path.
 	// The OS handles the "replace existing file?" confirmation.
 	ChooseSaveFile(req SaveRequest) (string, error)
@@ -14,6 +17,13 @@ type Port interface {
 	Reveal(path string) error
 	// CopyText puts text on the system clipboard.
 	CopyText(text string) error
+}
+
+// FolderRequest describes the folder dialog: outputs of a batch go into the
+// folder chosen.
+type FolderRequest struct {
+	Title string
+	Dir   string // opens here (the first source's folder)
 }
 
 // PickRequest describes the file picker.

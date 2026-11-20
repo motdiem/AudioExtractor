@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -54,14 +53,14 @@ const (
 	KindNotMedia              ErrorKind = "not-media"
 	KindDestinationUnwritable ErrorKind = "destination-unwritable" // permission, disk full, read-only or offline folder
 	KindOutputLocked          ErrorKind = "output-locked"          // the file to replace is open elsewhere
-	KindBatchUnsupported      ErrorKind = "batch-unsupported"      // removed by #8
+	KindEmptyFolder           ErrorKind = "empty-folder"           // a dropped folder holds no media files
 	KindCancelled             ErrorKind = "cancelled"              // silent: no message
 )
 
 // ErrorKinds that must have a message in every catalog (cancelled is silent).
 var MessageKinds = []ErrorKind{
 	KindFailed, KindNoAudio, KindUnreadable, KindNotMedia,
-	KindDestinationUnwritable, KindOutputLocked, KindBatchUnsupported,
+	KindDestinationUnwritable, KindOutputLocked, KindEmptyFolder,
 }
 
 // Phase is the stage the window should show.
@@ -72,6 +71,8 @@ const (
 	PhaseWorking Phase = "working"
 	PhaseDone    Phase = "done"
 	PhaseError   Phase = "error"
+	// PhaseSummary ends a batch: counts and the list of failed files.
+	PhaseSummary Phase = "summary"
 )
 
 // StateEvent is the payload of the "extract:state" event. Index/Total are the
@@ -85,6 +86,19 @@ type StateEvent struct {
 	Output  string    `json:"output"` // output path (done)
 	Kind    ErrorKind `json:"kind"`   // error
 	Message string    `json:"message"`
+	// Summary only (batches): how many items succeeded and failed, whether the
+	// user stopped the batch early, and the failed files. Output is then the
+	// first output file, which "Show in Finder" selects.
+	Done     int       `json:"done"`
+	Failed   int       `json:"failed"`
+	Stopped  bool      `json:"stopped"`
+	Failures []Failure `json:"failures"`
+}
+
+// Failure is one failed file in a batch summary.
+type Failure struct {
+	Name    string `json:"name"`
+	Message string `json:"message"`
 }
 
 // EventState is the name of the event carrying StateEvent.
@@ -103,6 +117,8 @@ type Outcome struct {
 	Kind    ErrorKind `json:"kind"`   // empty on success
 	Message string    `json:"message"`
 	Log     string    `json:"log"` // raw ffmpeg log, for "Copy details" (#7)
+
+	cause error // the Go error behind a failure, for "Copy details"
 }
 
 // Result is what a run returns.
@@ -189,33 +205,23 @@ func (s *Service) Lang() string { return string(s.cfg.Lang) }
 // Messages returns the UI catalog for the current language.
 func (s *Service) Messages() map[string]string { return s.msgs }
 
-// Accept resolves raw paths (picker, drop, launch arguments) to items.
-// Directories are skipped for now (folder drops arrive with #8); any file is
-// accepted, ffmpeg decides later whether it has audio.
+// Accept resolves raw paths (picker, drop, launch arguments) to items:
+// folders expand to their top-level media files, explicit files are always
+// kept, duplicates are dropped (see expandInputs).
 func (s *Service) Accept(paths []string) ([]Item, error) {
-	return s.accept(paths, s.currentFormat())
+	items, _, err := s.accept(paths, s.currentFormat())
+	return items, err
 }
 
-func (s *Service) accept(paths []string, f Format) ([]Item, error) {
-	var items []Item
-	for _, p := range paths {
-		fi, err := os.Stat(p)
-		if err != nil {
-			return nil, err
-		}
-		if fi.IsDir() {
-			continue
-		}
+func (s *Service) accept(paths []string, f Format) (items []Item, emptyFolders int, err error) {
+	files, emptyFolders, err := expandInputs(paths)
+	if err != nil {
+		return nil, 0, err
+	}
+	for _, p := range files {
 		items = append(items, Item{Path: p, SuggestedName: SuggestName(p, f)})
 	}
-	return items, nil
-}
-
-// SuggestName is the default output name for src: its own name with the new
-// extension. (Zoom meeting-folder naming comes with #8.)
-func SuggestName(src string, f Format) string {
-	base := filepath.Base(src)
-	return strings.TrimSuffix(base, filepath.Ext(base)) + f.ext()
+	return items, emptyFolders, nil
 }
 
 // Pick opens the file picker, then runs the extraction on the choice.
@@ -231,8 +237,9 @@ func (s *Service) Pick() Result {
 }
 
 // Run extracts the audio of paths into the given format ("m4a" or "mp3"; ""
-// means the remembered choice). A single item opens the Save dialog;
-// cancelling it returns to idle.
+// means the remembered choice). Folders expand to their media files. A single
+// item opens the Save dialog; several open a folder dialog and run one after
+// another. Cancelling a dialog returns to idle.
 func (s *Service) Run(paths []string, format string) Result {
 	if !s.busy.TryLock() {
 		return Result{Cancelled: true}
@@ -250,14 +257,18 @@ func (s *Service) Run(paths []string, format string) Result {
 	s.mu.Unlock()
 	defer cancel()
 
-	items, err := s.accept(paths, f)
-	if err != nil || len(items) == 0 {
+	items, empty, err := s.accept(paths, f)
+	switch {
+	case err != nil:
 		return s.fail(KindFailed, err, "")
+	case len(items) == 0 && empty > 0:
+		return s.fail(KindEmptyFolder, errors.New("no media files in the folder"), "")
+	case len(items) == 0:
+		return s.fail(KindFailed, errors.New("nothing to extract"), "")
+	case len(items) == 1:
+		return s.runOne(ctx, items[0], f)
 	}
-	if len(items) > 1 {
-		return s.fail(KindBatchUnsupported, errors.New("batches not supported yet"), "")
-	}
-	return s.runOne(ctx, items[0], f)
+	return s.runBatch(ctx, items, f)
 }
 
 // Cancel stops the running extraction, if any: ffmpeg is killed, the partial
@@ -290,11 +301,29 @@ func (s *Service) runOne(ctx context.Context, it Item, f Format) Result {
 		dest += f.ext()
 	}
 
-	s.emit(StateEvent{Phase: PhaseWorking, Index: 1, Total: 1, Percent: -1})
+	out := s.extractItem(ctx, it, dest, f, 1, 1)
+	switch {
+	case out.Kind == KindCancelled:
+		s.emit(StateEvent{Phase: PhaseIdle})
+		return Result{Cancelled: true, Outcomes: []Outcome{out}}
+	case out.Kind != "":
+		s.setDetails(out)
+		s.emit(StateEvent{Phase: PhaseError, Kind: out.Kind, Message: out.Message})
+		return Result{Outcomes: []Outcome{out}}
+	}
+	s.emit(StateEvent{Phase: PhaseDone, Index: 1, Total: 1, Percent: 100, Name: filepath.Base(dest), Output: dest})
+	return Result{Outcomes: []Outcome{out}}
+}
+
+// extractItem runs ffmpeg for one item, emitting working events for the
+// "file index of total" position, and returns its outcome. No terminal event
+// is emitted: the caller decides what the window shows next.
+func (s *Service) extractItem(ctx context.Context, it Item, dest string, f Format, index, total int) Outcome {
+	s.emit(StateEvent{Phase: PhaseWorking, Index: index, Total: total, Percent: -1})
 
 	bin, err := s.cfg.Locate()
 	if err != nil {
-		return s.fail(KindFailed, err, it.Path)
+		return s.outcomeFor(it.Path, KindFailed, err, "")
 	}
 	var last time.Time
 	onProgress := func(percent int) {
@@ -303,21 +332,84 @@ func (s *Service) runOne(ctx context.Context, it Item, f Format) Result {
 			return
 		}
 		last = time.Now()
-		s.emit(StateEvent{Phase: PhaseWorking, Index: 1, Total: 1, Percent: percent})
+		s.emit(StateEvent{Phase: PhaseWorking, Index: index, Total: total, Percent: percent})
 	}
 	log, kind, err := extract(ctx, bin, it.Path, dest, f, onProgress)
-	switch {
-	case kind == KindCancelled:
-		s.emit(StateEvent{Phase: PhaseIdle})
-		return Result{Cancelled: true, Outcomes: []Outcome{{Source: it.Path, Kind: KindCancelled, Log: log}}}
-	case err != nil:
-		out := Outcome{Source: it.Path, Kind: kind, Message: s.msgs.T("error." + string(kind)), Log: log}
-		s.setDetails(out, err)
-		s.emit(StateEvent{Phase: PhaseError, Kind: kind, Message: out.Message})
-		return Result{Outcomes: []Outcome{out}}
+	if kind != "" {
+		return s.outcomeFor(it.Path, kind, err, log)
 	}
-	s.emit(StateEvent{Phase: PhaseDone, Index: 1, Total: 1, Percent: 100, Name: filepath.Base(dest), Output: dest})
-	return Result{Outcomes: []Outcome{{Source: it.Path, Output: dest, Log: log}}}
+	return Outcome{Source: it.Path, Output: dest, Log: log}
+}
+
+// outcomeFor builds the failed Outcome for kind. The cause is kept (not
+// serialised) for "Copy details".
+func (s *Service) outcomeFor(src string, kind ErrorKind, cause error, log string) Outcome {
+	o := Outcome{Source: src, Kind: kind, Log: log, cause: cause}
+	if kind != KindCancelled {
+		o.Message = s.msgs.T("error." + string(kind))
+	}
+	return o
+}
+
+// runBatch asks for a destination folder, then extracts the items one after
+// another. A failure never stops the batch. Cancel stops it: the current item
+// is cleaned up by extract, finished items stay in place, and the window shows
+// the summary with a "Stopped after N of M" title (or goes back to idle if
+// nothing had finished yet).
+func (s *Service) runBatch(ctx context.Context, items []Item, f Format) Result {
+	dir, err := s.cfg.Port.ChooseFolder(FolderRequest{
+		Title: s.msgs.T("folder.title"),
+		Dir:   filepath.Dir(items[0].Path),
+	})
+	if err != nil {
+		return s.fail(KindFailed, err, "")
+	}
+	if dir == "" {
+		s.emit(StateEvent{Phase: PhaseIdle})
+		return Result{Cancelled: true}
+	}
+
+	taken := map[string]bool{}
+	var res Result
+	var failures []Failure
+	var failedOutcomes []Outcome
+	done, firstOut, stopped := 0, "", false
+	for i, it := range items {
+		if ctx.Err() != nil {
+			stopped = true
+			break
+		}
+		dest := filepath.Join(dir, uniqueName(dir, it.SuggestedName, taken))
+		out := s.extractItem(ctx, it, dest, f, i+1, len(items))
+		res.Outcomes = append(res.Outcomes, out)
+		switch {
+		case out.Kind == KindCancelled:
+			stopped = true
+		case out.Kind != "":
+			failedOutcomes = append(failedOutcomes, out)
+			failures = append(failures, Failure{Name: filepath.Base(it.Path), Message: out.Message})
+		default:
+			done++
+			if firstOut == "" {
+				firstOut = dest
+			}
+		}
+		if stopped {
+			break
+		}
+	}
+	s.setDetails(failedOutcomes...)
+	res.Cancelled = stopped
+	if stopped && done+len(failures) == 0 {
+		s.emit(StateEvent{Phase: PhaseIdle})
+		return res
+	}
+	s.emit(StateEvent{
+		Phase: PhaseSummary, Index: done + len(failures), Total: len(items),
+		Percent: 100, Output: firstOut, Done: done, Failed: len(failures),
+		Stopped: stopped, Failures: failures,
+	})
+	return res
 }
 
 // Reveal shows path in the file manager.
@@ -330,20 +422,23 @@ func (s *Service) emit(e StateEvent) {
 }
 
 func (s *Service) fail(kind ErrorKind, err error, src string) Result {
-	msg := s.msgs.T("error." + string(kind))
-	log := ""
+	out := s.outcomeFor(src, kind, nil, "")
 	if err != nil {
-		log = err.Error()
+		out.Log = err.Error()
 	}
-	out := Outcome{Source: src, Kind: kind, Message: msg, Log: log}
-	s.setDetails(out, nil)
-	s.emit(StateEvent{Phase: PhaseError, Kind: kind, Message: msg})
+	s.setDetails(out)
+	s.emit(StateEvent{Phase: PhaseError, Kind: kind, Message: out.Message})
 	return Result{Outcomes: []Outcome{out}}
 }
 
-// setDetails remembers the text "Copy details" will put on the clipboard.
-func (s *Service) setDetails(o Outcome, cause error) {
-	d := s.detailsText(o, cause)
+// setDetails remembers the text "Copy details" will put on the clipboard: one
+// block per failed outcome, concatenated.
+func (s *Service) setDetails(outs ...Outcome) {
+	blocks := make([]string, len(outs))
+	for i, o := range outs {
+		blocks[i] = s.detailsText(o)
+	}
+	d := strings.Join(blocks, "\n==========\n\n")
 	s.mu.Lock()
 	s.details = d
 	s.mu.Unlock()
@@ -351,7 +446,7 @@ func (s *Service) setDetails(o Outcome, cause error) {
 
 // detailsText is what a person pastes into an email to us: a short header and
 // the raw ffmpeg log. The header carries only the file name; the log is ffmpeg's own and may include the path.
-func (s *Service) detailsText(o Outcome, cause error) string {
+func (s *Service) detailsText(o Outcome) string {
 	version := s.cfg.Version
 	if version == "" {
 		version = "dev"
@@ -362,8 +457,8 @@ func (s *Service) detailsText(o Outcome, cause error) string {
 		fmt.Fprintf(&b, "File: %s\n", filepath.Base(o.Source))
 	}
 	fmt.Fprintf(&b, "Error: %s\n", o.Kind)
-	if cause != nil {
-		fmt.Fprintf(&b, "Cause: %v\n", cause)
+	if o.cause != nil {
+		fmt.Fprintf(&b, "Cause: %v\n", o.cause)
 	}
 	b.WriteString("\n--- ffmpeg log ---\n")
 	b.WriteString(strings.TrimSpace(o.Log))
