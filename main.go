@@ -4,7 +4,10 @@ import (
 	"embed"
 	"errors"
 	"log"
+	"os"
 	"os/exec"
+	"runtime"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -13,6 +16,7 @@ import (
 	"github.com/motdiem/AudioExtractor/internal/extract"
 	"github.com/motdiem/AudioExtractor/internal/ffmpeg"
 	"github.com/motdiem/AudioExtractor/internal/i18n"
+	"github.com/motdiem/AudioExtractor/internal/launch"
 	"github.com/motdiem/AudioExtractor/internal/settings"
 )
 
@@ -23,6 +27,9 @@ var assets embed.FS
 
 // version is set at release time with -ldflags "-X main.version=...".
 var version = "dev"
+
+// launchDebounce merges files that arrive in quick succession into one batch.
+const launchDebounce = 300 * time.Millisecond
 
 func main() {
 	port := &desktop.Port{}
@@ -43,7 +50,21 @@ func main() {
 		Version:  version,
 	})
 
-	app := application.New(application.Options{
+	// Files the OS opens us with (Dock icon, "Open with", command line, a
+	// second launch) are gathered into batches, held until the frontend says
+	// it is ready, then sent down the same path as a window drop.
+	var app *application.App
+	launcher := launch.New(launchDebounce, func(paths []string) {
+		if svc.Busy() {
+			// Simplest robust option: tell the user instead of queueing.
+			msgs := svc.Messages()
+			app.Dialog.Info().SetTitle(msgs["busy.title"]).SetMessage(msgs["busy.message"]).Show()
+			return
+		}
+		go svc.Run(paths, "") // "" = the remembered format
+	})
+
+	app = application.New(application.Options{
 		Name:        "AudioExtractor",
 		Description: "Extract the audio from a Zoom recording",
 		Services:    []application.Service{application.NewService(svc)},
@@ -53,8 +74,37 @@ func main() {
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
+		// One instance only: a second launch (say, files dropped on the exe
+		// while it runs) forwards its arguments here and exits.
+		SingleInstance: &application.SingleInstanceOptions{
+			UniqueID: "com.motdiem.audioextractor",
+			OnSecondInstanceLaunch: func(data application.SecondInstanceData) {
+				if len(data.Args) > 1 {
+					launcher.Add(launch.Filter(data.Args[1:], nil)...)
+				}
+				if w := port.Window; w != nil {
+					w.Restore()
+					w.Focus()
+				}
+			},
+		},
 	})
 	port.App = app
+
+	// macOS delivers the files of a Dock drop or "Open with" as one event per
+	// file, both at cold launch and while running.
+	app.Event.OnApplicationEvent(events.Common.ApplicationOpenedWithFile, func(e *application.ApplicationEvent) {
+		if f := e.Context().Filename(); f != "" {
+			launcher.Add(f)
+		}
+	})
+	app.Event.On("frontend:ready", func(*application.CustomEvent) { launcher.Ready() })
+
+	// Windows passes the files on the command line. (On macOS the arguments
+	// are not files: the open events above carry them.)
+	if runtime.GOOS == "windows" {
+		launcher.Add(launch.Filter(os.Args[1:], nil)...)
+	}
 
 	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:     "AudioExtractor",

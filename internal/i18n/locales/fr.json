@@ -34,5 +34,7 @@
   "summary.title.ok": "{done} fichiers terminés",
   "summary.title.mixed": "{done} réussis, {failed} en échec",
   "summary.title.stopped": "Arrêté après {n} sur {total}",
-  "summary.counts": "{done} réussis, {failed} en échec"
+  "summary.counts": "{done} réussis, {failed} en échec",
+  "busy.title": "AudioExtractor est occupé",
+  "busy.message": "Occupé : réessayez quand le travail en cours sera terminé."
 }

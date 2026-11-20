@@ -271,6 +271,16 @@ func (s *Service) Run(paths []string, format string) Result {
 	return s.runBatch(ctx, items, f)
 }
 
+// Busy reports whether a Run is in progress (a Run started now would be
+// refused).
+func (s *Service) Busy() bool {
+	if s.busy.TryLock() {
+		s.busy.Unlock()
+		return false
+	}
+	return true
+}
+
 // Cancel stops the running extraction, if any: ffmpeg is killed, the partial
 // output is removed and the window returns to idle without an error.
 func (s *Service) Cancel() {

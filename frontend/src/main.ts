@@ -184,6 +184,9 @@ async function main() {
             show("idle");
         });
     }
+
+    // Everything is wired: Go may now deliver files the OS opened us with.
+    Events.Emit("frontend:ready");
 }
 
 main();

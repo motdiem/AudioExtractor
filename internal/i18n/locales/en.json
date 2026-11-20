@@ -34,5 +34,7 @@
   "summary.title.ok": "{done} files done",
   "summary.title.mixed": "{done} done, {failed} failed",
   "summary.title.stopped": "Stopped after {n} of {total}",
-  "summary.counts": "{done} done, {failed} failed"
+  "summary.counts": "{done} done, {failed} failed",
+  "busy.title": "AudioExtractor is busy",
+  "busy.message": "Busy: try again when the current job finishes."
 }
