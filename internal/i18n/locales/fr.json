@@ -2,6 +2,8 @@
   "app.title": "AudioExtractor",
   "app.subtitle": "Extracteur audio",
   "version.label": "Version {version}",
+  "licences.link": "Licences",
+  "licences.title": "Licences des logiciels libres (FFmpeg, LAME et autres)",
   "drop.title": "Déposez des fichiers ou un dossier",
   "drop.hint": "ou cliquez pour choisir des fichiers",
   "drop.release": "Relâchez pour extraire l’audio",

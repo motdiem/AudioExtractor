@@ -17,6 +17,7 @@ import (
 	"github.com/motdiem/AudioExtractor/internal/ffmpeg"
 	"github.com/motdiem/AudioExtractor/internal/i18n"
 	"github.com/motdiem/AudioExtractor/internal/launch"
+	"github.com/motdiem/AudioExtractor/internal/notices"
 	"github.com/motdiem/AudioExtractor/internal/settings"
 	"github.com/motdiem/AudioExtractor/internal/window"
 )
@@ -63,7 +64,13 @@ func main() {
 	app := application.New(application.Options{
 		Name:        "AudioExtractor",
 		Description: "Extract the audio from a Zoom recording",
-		Services:    []application.Service{application.NewService(svc)},
+		Services: []application.Service{
+			application.NewService(svc),
+			application.NewService(&notices.Service{
+				FS:       noticeFiles,
+				OpenFile: func(path string) error { return application.Get().Browser.OpenFile(path) },
+			}),
+		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
 		},

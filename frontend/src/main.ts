@@ -1,5 +1,6 @@
 import { Events } from "@wailsio/runtime";
 import * as Extract from "../bindings/github.com/motdiem/AudioExtractor/internal/extract/service";
+import * as Notices from "../bindings/github.com/motdiem/AudioExtractor/internal/notices/service";
 
 // All the logic lives in the Go service. This file only shows its state:
 // the service emits "extract:state" and we swap the matching screen.
@@ -125,6 +126,9 @@ function showStatic(version: string) {
     document.querySelectorAll<HTMLElement>("[data-i18n]").forEach((el) => {
         el.textContent = t(el.dataset.i18n!);
     });
+    document.querySelectorAll<HTMLElement>("[data-i18n-title]").forEach((el) => {
+        el.title = t(el.dataset.i18nTitle!);
+    });
     document.querySelectorAll<HTMLElement>("[data-i18n-label]").forEach((el) => {
         el.setAttribute("aria-label", t(el.dataset.i18nLabel!));
     });
@@ -200,6 +204,8 @@ async function main() {
             copiedTimer = window.setTimeout(() => (copy.textContent = t("copy.details")), 2000);
         });
     }
+    // Licences: Go writes the notice to a temporary file and opens it.
+    $("licences").addEventListener("click", () => void Notices.Open().catch(() => {}));
     $("again").addEventListener("click", () => show("idle"));
     $("summary-again").addEventListener("click", () => show("idle"));
     // The first output is selected, which opens the destination folder.

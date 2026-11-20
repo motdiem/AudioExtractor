@@ -1,0 +1,109 @@
+AudioExtractor - third-party notices
+====================================
+
+AudioExtractor is a small tool that extracts the audio from a video. It is
+built from the open-source components below. Their full licence texts follow
+this notice (in the app: the "Licences" link; in the macOS app bundle:
+Contents/Resources/; in the Windows zip: next to the exe).
+
+Version francaise: AudioExtractor embarque FFmpeg 9.0.2 et LAME 3.100, deux
+logiciels libres sous licence LGPL (GNU Lesser General Public License, version
+2.1 ou ulterieure pour FFmpeg, version 2 ou ulterieure pour LAME). Vous pouvez
+les utiliser, les etudier et les remplacer. Le code source correspondant est
+disponible aux adresses indiquees ci-dessous, et sur simple demande (voir
+"Written offer"). Les autres composants (Wails, Go, go-ole, golang.org/x/sys)
+sont sous licence MIT ou BSD. Les textes complets des licences suivent.
+
+
+1. FFmpeg 9.0.2  -  LGPL v2.1 or later
+--------------------------------------
+
+AudioExtractor includes a slim build of the FFmpeg command-line tool
+(https://ffmpeg.org). It is unmodified upstream FFmpeg, configured without
+--enable-gpl, --enable-nonfree or --enable-version3, so the whole binary is
+licensed under the GNU Lesser General Public License, version 2.1 or later.
+The binary is run as a separate program (a child process); AudioExtractor's own
+code is not linked into it.
+
+Source code (unmodified):
+  https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
+  SHA-256 8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e
+
+
+2. LAME 3.100 (libmp3lame)  -  LGPL v2 or later
+-----------------------------------------------
+
+The MP3 encoder inside that FFmpeg build is the LAME library
+(https://lame.sourceforge.io), unmodified, statically linked into the ffmpeg
+binary. LAME is licensed under the GNU Lesser General Public License, version 2
+or later.
+
+Source code (unmodified):
+  https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz
+  SHA-256 ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e
+
+
+3. How the bundled ffmpeg was built
+-----------------------------------
+
+Both builds (macOS universal arm64+x86_64, Windows x64 cross-compiled with
+mingw-w64) come from the scripts in the AudioExtractor source repository:
+
+  https://github.com/motdiem/AudioExtractor
+    scripts/ffmpeg/config.sh         versions, checksums and configure flags
+    scripts/ffmpeg/build-mac.sh      macOS build
+    scripts/ffmpeg/build-windows.sh  Windows build
+
+The shared configure flags (config.sh), plus --arch, --target-os, --cc or
+--cross-prefix and static-link flags for each platform, are:
+
+  LAME:    --disable-shared --enable-static --disable-frontend
+           --disable-decoder --disable-gtktest --disable-dependency-tracking
+
+  FFmpeg:  --disable-everything --disable-autodetect --disable-doc
+           --disable-debug --disable-network --disable-programs
+           --enable-ffmpeg --disable-shared --enable-static
+           --pkg-config-flags=--static --disable-avdevice --disable-swscale
+           --enable-protocol=file,pipe
+           --enable-demuxer=mov,matroska,mp3,aac,wav
+           --enable-decoder=aac,mp3,mp3float,opus --enable-decoder='pcm_*'
+           --enable-parser=aac,mpegaudio,opus --enable-bsf=aac_adtstoasc
+           --enable-encoder=aac,libmp3lame,pcm_s16le --enable-libmp3lame
+           --enable-muxer=ipod,mp4,mp3,null
+           --enable-filter=aresample,aformat,anull,atrim,abuffer,abuffersink
+
+Running `ffmpeg -buildconf` on the bundled binary prints the configuration it
+was really built with.
+
+Your rights under the LGPL include modifying FFmpeg and LAME and using your
+own build. The app embeds the ffmpeg produced by `wails3 task ffmpeg:mac` and
+`ffmpeg:windows`, so using a modified build means rebuilding AudioExtractor
+from source with those scripts (`wails3 task release`).
+
+
+4. Written offer of source code
+-------------------------------
+
+If you received AudioExtractor from us and want the complete corresponding
+source code of FFmpeg and LAME as used in it, or the build scripts, you can
+download them from the addresses above, or ask us and we will send you a copy
+for no more than the cost of doing so. Open an issue at
+https://github.com/motdiem/AudioExtractor/issues or contact the person who
+gave you the app. This offer is valid for as long as we distribute this
+version of AudioExtractor, and for at least three years.
+
+
+5. Other components (compiled into the app)
+-------------------------------------------
+
+  Wails v3.1.0                    MIT       https://wails.io
+                                            (the application framework)
+  @wailsio/runtime 3.1.0          MIT       the Wails JavaScript runtime in the
+                                            window (part of the Wails project)
+  Go 1.27 standard library        BSD-3     https://go.dev
+  golang.org/x/sys 0.48.0         BSD-3     https://pkg.go.dev/golang.org/x/sys
+  go-ole 1.3.0 (Windows only)     MIT       https://github.com/go-ole/go-ole
+
+The licence texts follow, one after the other, in alphabetical order of
+component folder (ffmpeg, go, go-ole, golang-x-sys, lame, wails,
+wailsio-runtime).
