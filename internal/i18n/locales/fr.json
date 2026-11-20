@@ -4,7 +4,6 @@
   "drop.hint": "ou cliquez pour choisir un fichier",
   "drop.release": "Relâchez pour extraire l’audio",
   "save.title": "Enregistrer l’audio sous",
-  "save.filter": "Audio M4A",
   "pick.title": "Choisissez un fichier vidéo ou audio",
   "working.title": "Extraction de l’audio…",
   "working.hint": "Cela prend généralement une seconde.",
@@ -16,5 +15,12 @@
   "error.again": "Réessayer",
   "error.failed": "L’audio n’a pas pu être extrait de ce fichier. Essayez un autre fichier.",
   "error.no-audio": "Cette vidéo n’a pas de son, il n’y a donc rien à extraire.",
-  "error.batch-unsupported": "Déposez un seul fichier à la fois pour l’instant."
+  "error.batch-unsupported": "Déposez un seul fichier à la fois pour l’instant.",
+  "save.filter.m4a": "Audio M4A",
+  "save.filter.mp3": "Audio MP3",
+  "format.label": "Format de sortie",
+  "format.m4a": "M4A",
+  "format.mp3": "MP3",
+  "working.progress": "{percent} %",
+  "working.cancel": "Annuler"
 }

@@ -65,10 +65,14 @@ func (r *recorder) emit(name string, data any) {
 	}
 }
 
+// phases lists the phases seen, with consecutive repeats (progress updates)
+// collapsed.
 func (r *recorder) phases() []Phase {
 	var p []Phase
 	for _, e := range r.events {
-		p = append(p, e.Phase)
+		if len(p) == 0 || p[len(p)-1] != e.Phase {
+			p = append(p, e.Phase)
+		}
 	}
 	return p
 }
@@ -345,7 +349,7 @@ func TestCancelledContextLeavesNoPartialFile(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, kind, err := extractM4A(ctx, ffmpegPath(t), src, filepath.Join(dir, "clip.m4a"))
+	_, kind, err := extract(ctx, ffmpegPath(t), src, filepath.Join(dir, "clip.m4a"), FormatM4A, nil)
 	if err == nil || kind != KindCancelled {
 		t.Errorf("kind = %q err = %v, want cancelled", kind, err)
 	}

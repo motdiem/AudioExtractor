@@ -11,14 +11,34 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/motdiem/AudioExtractor/internal/i18n"
+	"github.com/motdiem/AudioExtractor/internal/settings"
 )
 
-// Format is an output format. Only M4A exists so far (MP3 arrives with ticket #6).
+// Format is an output format.
 type Format string
 
-const FormatM4A Format = "m4a"
+const (
+	FormatM4A Format = "m4a" // the default: near-instant, lossless
+	FormatMP3 Format = "mp3" // 128 kbps CBR re-encode
+)
+
+// ParseFormat returns the Format named s, or false if there is none.
+func ParseFormat(s string) (Format, bool) {
+	switch f := Format(s); f {
+	case FormatM4A, FormatMP3:
+		return f, true
+	}
+	return "", false
+}
+
+// settingsKeyFormat is where the last chosen format is remembered.
+const settingsKeyFormat = "format"
+
+// progressInterval throttles percent events to about 10 per second.
+const progressInterval = 100 * time.Millisecond
 
 func (f Format) ext() string { return "." + string(f) }
 
@@ -92,6 +112,9 @@ type Config struct {
 	// Emit sends an event to the window. May be nil.
 	Emit func(name string, data any)
 	Lang i18n.Lang
+	// Settings remembers the chosen format across launches. May be nil
+	// (the choice then lasts for the session only).
+	Settings *settings.Store
 }
 
 // Service is the extraction application service.
@@ -99,13 +122,53 @@ type Service struct {
 	cfg  Config
 	msgs i18n.Catalog
 
-	busy   sync.Mutex
+	busy sync.Mutex // held for the whole of a Run
+
+	mu     sync.Mutex // guards cancel and format
 	cancel context.CancelFunc
+	format Format
 }
 
 // New returns a Service.
 func New(cfg Config) *Service {
-	return &Service{cfg: cfg, msgs: i18n.Load(cfg.Lang)}
+	s := &Service{cfg: cfg, msgs: i18n.Load(cfg.Lang), format: FormatM4A}
+	if cfg.Settings != nil {
+		var saved string
+		if cfg.Settings.Get(settingsKeyFormat, &saved) {
+			if f, ok := ParseFormat(saved); ok {
+				s.format = f
+			}
+		}
+	}
+	return s
+}
+
+// Format returns the chosen output format ("m4a" or "mp3").
+func (s *Service) Format() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return string(s.format)
+}
+
+// SetFormat changes the output format and remembers it for the next launch.
+func (s *Service) SetFormat(format string) error {
+	f, ok := ParseFormat(format)
+	if !ok {
+		return fmt.Errorf("unknown format %q", format)
+	}
+	s.mu.Lock()
+	s.format = f
+	s.mu.Unlock()
+	if s.cfg.Settings != nil {
+		return s.cfg.Settings.Set(settingsKeyFormat, string(f))
+	}
+	return nil
+}
+
+func (s *Service) currentFormat() Format {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.format
 }
 
 // Lang returns the UI language code ("en" or "fr").
@@ -118,6 +181,10 @@ func (s *Service) Messages() map[string]string { return s.msgs }
 // Directories are skipped for now (folder drops arrive with #8); any file is
 // accepted, ffmpeg decides later whether it has audio.
 func (s *Service) Accept(paths []string) ([]Item, error) {
+	return s.accept(paths, s.currentFormat())
+}
+
+func (s *Service) accept(paths []string, f Format) ([]Item, error) {
 	var items []Item
 	for _, p := range paths {
 		fi, err := os.Stat(p)
@@ -127,7 +194,7 @@ func (s *Service) Accept(paths []string) ([]Item, error) {
 		if fi.IsDir() {
 			continue
 		}
-		items = append(items, Item{Path: p, SuggestedName: SuggestName(p, FormatM4A)})
+		items = append(items, Item{Path: p, SuggestedName: SuggestName(p, f)})
 	}
 	return items, nil
 }
@@ -148,47 +215,56 @@ func (s *Service) Pick() Result {
 	if len(paths) == 0 {
 		return Result{Cancelled: true}
 	}
-	return s.Run(paths, string(FormatM4A))
+	return s.Run(paths, "")
 }
 
-// Run extracts the audio of paths into the given format (only "m4a" for now).
-// A single item opens the Save dialog; cancelling it returns to idle.
+// Run extracts the audio of paths into the given format ("m4a" or "mp3"; ""
+// means the remembered choice). A single item opens the Save dialog;
+// cancelling it returns to idle.
 func (s *Service) Run(paths []string, format string) Result {
 	if !s.busy.TryLock() {
 		return Result{Cancelled: true}
 	}
 	defer s.busy.Unlock()
 
+	f, ok := ParseFormat(format)
+	if !ok {
+		f = s.currentFormat()
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
+	s.mu.Lock()
 	s.cancel = cancel
+	s.mu.Unlock()
 	defer cancel()
 
-	items, err := s.Accept(paths)
+	items, err := s.accept(paths, f)
 	if err != nil || len(items) == 0 {
 		return s.fail(KindFailed, err, "")
 	}
 	if len(items) > 1 {
 		return s.fail(KindBatchUnsupported, errors.New("batches not supported yet"), "")
 	}
-	return s.runOne(ctx, items[0], Format(format))
+	return s.runOne(ctx, items[0], f)
 }
 
-// Cancel stops the running extraction, if any.
+// Cancel stops the running extraction, if any: ffmpeg is killed, the partial
+// output is removed and the window returns to idle without an error.
 func (s *Service) Cancel() {
-	if s.cancel != nil {
-		s.cancel()
+	s.mu.Lock()
+	cancel := s.cancel
+	s.mu.Unlock()
+	if cancel != nil {
+		cancel()
 	}
 }
 
 func (s *Service) runOne(ctx context.Context, it Item, f Format) Result {
-	if f != FormatM4A {
-		return s.fail(KindFailed, fmt.Errorf("unsupported format %q", f), it.Path)
-	}
 	dest, err := s.cfg.Port.ChooseSaveFile(SaveRequest{
 		Title:      s.msgs.T("save.title"),
 		Dir:        filepath.Dir(it.Path),
 		Name:       it.SuggestedName,
-		FilterName: s.msgs.T("save.filter"),
+		FilterName: s.msgs.T("save.filter." + string(f)),
 		Extension:  string(f),
 	})
 	if err != nil {
@@ -208,7 +284,16 @@ func (s *Service) runOne(ctx context.Context, it Item, f Format) Result {
 	if err != nil {
 		return s.fail(KindFailed, err, it.Path)
 	}
-	log, kind, err := extractM4A(ctx, bin, it.Path, dest)
+	var last time.Time
+	onProgress := func(percent int) {
+		// Throttle to ~10 events/s, but never swallow the final 100.
+		if percent < 100 && time.Since(last) < progressInterval {
+			return
+		}
+		last = time.Now()
+		s.emit(StateEvent{Phase: PhaseWorking, Index: 1, Total: 1, Percent: percent})
+	}
+	log, kind, err := extract(ctx, bin, it.Path, dest, f, onProgress)
 	switch {
 	case kind == KindCancelled:
 		s.emit(StateEvent{Phase: PhaseIdle})
