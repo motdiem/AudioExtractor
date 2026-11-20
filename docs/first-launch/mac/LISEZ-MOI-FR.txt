@@ -1,0 +1,61 @@
+AudioExtractor pour Mac – premier lancement
+===========================================
+
+AudioExtractor extrait le son d’un enregistrement Zoom. Glissez la vidéo sur
+la fenêtre, choisissez où enregistrer, c’est fini. Tout se passe sur votre
+Mac : rien n’est envoyé sur Internet. Fonctionne sur les Mac Apple Silicon et
+Intel.
+
+1. INSTALLER
+   - Double-cliquez sur AudioExtractor-mac.zip s’il ne s’est pas ouvert tout
+     seul.
+   - Glissez AudioExtractor dans votre dossier Applications (facultatif :
+     l’app fonctionne de n’importe où, par exemple Documents ou le Bureau).
+
+2. L’OUVRIR LA PREMIÈRE FOIS
+   L’app n’est pas signée par un développeur enregistré chez Apple : votre Mac
+   va donc vous arrêter la première fois. Elle est sûre, et vous ne le faites
+   qu’une seule fois.
+
+   a) Double-cliquez sur AudioExtractor. macOS indique qu’il ne peut pas
+      vérifier l’app. Cliquez sur « Terminé » (surtout PAS sur « Placer dans
+      la corbeille »).
+   b) Menu Pomme > Réglages Système > Confidentialité et sécurité.
+   c) Descendez jusqu’à la section « Sécurité ». Un message indique que
+      « AudioExtractor » a été bloqué. Cliquez sur « Ouvrir quand même ».
+   d) Confirmez avec votre mot de passe ou Touch ID, puis cliquez à nouveau
+      sur « Ouvrir quand même ».
+
+   (Le texte exact des messages change un peu selon la version de macOS. Sur
+   un Mac plus ancien – macOS 14 ou avant – c’est plus simple : clic droit sur
+   l’app, « Ouvrir », puis « Ouvrir ».)
+
+   Si le bouton n’apparaît pas, ouvrez l’app Terminal et collez :
+     xattr -dr com.apple.quarantine /Applications/AudioExtractor.app
+   (changez le chemin si l’app est ailleurs), puis ouvrez-la de nouveau.
+
+3. L’UTILISER
+   Glissez un MP4 (ou un dossier Zoom entier) sur la fenêtre, ou sur l’icône
+   de l’app. Choisissez M4A (instantané, meilleure qualité) ou MP3 (plus
+   léger, lisible partout).
+
+OÙ SONT RANGÉES LES CHOSES
+   - Vos fichiers audio : uniquement là où vous choisissez de les enregistrer.
+   - Un petit programme auxiliaire (ffmpeg), copié au premier usage :
+       ~/Library/Caches/AudioExtractor
+   - Vos réglages (dernier format, position de la fenêtre) :
+       ~/Library/Application Support/AudioExtractor
+   (~ est votre dossier personnel. Dans le Finder : Aller > Aller au
+   dossier…, puis collez le chemin.)
+
+TOUT SUPPRIMER
+   Glissez AudioExtractor dans la corbeille, puis supprimez les deux dossiers
+   ci-dessus.
+
+LICENCES
+   AudioExtractor contient les logiciels libres FFmpeg et LAME. Leurs licences
+   sont dans THIRD_PARTY_NOTICES.txt (à côté de ce fichier, dans l’app sous
+   Contents/Resources, et derrière le lien « Licences » de la fenêtre).
+
+Un souci ? Écrivez à la personne qui vous a envoyé l’app. Le numéro de version
+est en bas à droite de la fenêtre.

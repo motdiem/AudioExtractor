@@ -80,7 +80,7 @@ Decisions:
 - **The clipboard goes through Go**, not `navigator.clipboard`. The webview clipboard needs a user gesture, a secure context and sometimes a permission prompt, and behaves differently in WKWebView and WebView2. Wails v3 has `app.Clipboard.SetText`, which uses the native clipboard on each OS. It sits behind a new `Port.CopyText` method, so the service stays testable (the fake port records the text).
 - **Go remembers the text**, set whenever an error is shown. `CopyDetails()` takes no argument; the frontend cannot get it wrong.
 - **The header only names the file**, not its folder. The raw ffmpeg log is left untouched and may contain the path; it is what we need.
-- **The app version** comes from `Config.Version`, set from `main.version` (default `dev`; release builds can pass `-ldflags "-X main.version=1.2.3"`).
+- **The app version** comes from `Config.Version`, set from `main.version` (default `dev`; release builds can pass `-ldflags "-X main.version=1.2.3"`). *Update: chapter 9 wired this to `git describe` in the build tasks.*
 - **"Copied"** replaces the button label for two seconds, then it returns. If the copy fails there is nothing useful to tell the user, so we stay quiet.
 
 ## Tests

@@ -77,6 +77,8 @@ This starts Vite on port 9245, builds the Go app and opens the window pointing a
 
 ## The release task
 
+> **Update:** this is the first, minimal version. By chapter 12 the task also builds both ffmpegs when missing (chapters 2 and 3), bundles the licence notices, adds first-launch notes to each archive, verifies the result and prints checksums. The idea below is unchanged.
+
 `wails3 task` runs the project's Taskfile. The generated platform files already know how to build a universal macOS binary (two `go build`, then `lipo`) and a Windows exe. We only added one task to the root `Taskfile.yml`:
 
 ```yaml

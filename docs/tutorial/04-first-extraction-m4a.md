@@ -23,7 +23,7 @@ All the behaviour lives in one Go type, `extract.Service` (`internal/extract`). 
 The service is the one thing we test, and it needs two things it must not hard-code:
 
 1. **Native dialogs and "reveal"**: a small `Port` interface (`ChooseInputs`, `ChooseSaveFile`, `Reveal`). `internal/desktop` implements it with Wails dialogs; the tests use a fake that returns canned paths and records what it was asked (which folder, which pre-filled name).
-2. **ffmpeg's location**: a `Locate func() (string, error)` passed to `extract.New`. Production will pass the embedded build (`ffmpeg.Path()`, chapter 3); until that lands, `main.go` uses `exec.LookPath("ffmpeg")`. Tests use `$AUDIOEXTRACTOR_FFMPEG` or `PATH`, and skip with a clear message if neither exists.
+2. **ffmpeg's location**: a `Locate func() (string, error)` passed to `extract.New`. Production will pass the embedded build (`ffmpeg.Path()`, chapter 3); until that lands, `main.go` uses `exec.LookPath("ffmpeg")`. *Update: released apps always use the embedded ffmpeg; `PATH` is only the fallback of a dev build made without it. The tests still use `$AUDIOEXTRACTOR_FFMPEG` or `PATH` (Homebrew's ffmpeg), and chapter 11 runs them a second time against the slim build.* Tests use `$AUDIOEXTRACTOR_FFMPEG` or `PATH`, and skip with a clear message if neither exists.
 
 Tests run the **real ffmpeg** on a 2-second clip generated at test time:
 
@@ -81,3 +81,5 @@ Language detection happens in Go, once, at startup:
 ## What is deliberately not here yet
 
 One file at a time (dropping several shows a message), no MP3, no progress bar, a single generic error plus "no audio". Those arrive with the batch (#8), MP3/progress (#6) and error-kind (#7) tickets; the service already carries `Index`/`Total`/`Percent` on its state event and an `ErrorKind` on every outcome so they slot in without reshaping it.
+
+> **Update:** all of it arrived: MP3 and progress in chapter 5, error kinds in chapter 6, batches in chapter 7.

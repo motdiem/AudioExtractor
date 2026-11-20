@@ -1,6 +1,12 @@
-# AudioExtractor tutorial
+# AudioExtractor: building a tiny cross-platform desktop app on a Mac, with no CI
 
-A step-by-step build log of AudioExtractor, a tiny desktop app (macOS + Windows) that extracts the audio from a Zoom recording. Each chapter matches one ticket and is written to be readable on its own.
+AudioExtractor is a small desktop app for macOS and Windows. You drop a Zoom recording on it and get the audio as M4A or MP3, in about a second, with errors a non-technical person can understand.
+
+The premise of this series: **everything is built on one Mac, by hand, with no CI.** The universal macOS app, the Windows `.exe`, and even the slim, LGPL-only ffmpeg inside each of them are produced by one command on a laptop, and the Windows build is tested from the same Mac in a virtual machine. No GitHub Actions minutes, no Windows build server, no installer, no certificates.
+
+Each chapter matches one ticket and is written to be readable on its own: what we did, why, the exact commands, and the pitfalls. Read them in order, or jump to the one you need. The stack is Go 1.27, [Wails v3](https://v3.wails.io/) and plain TypeScript.
+
+## Chapters
 
 1. [Scaffold and local builds](01-scaffold-and-local-builds.md): a Wails v3 app, dev mode, and a one-command release that builds a universal macOS app and a Windows exe from a single Mac, with no CI.
 2. [A slim ffmpeg for macOS, embedded in the app](02-slim-ffmpeg-for-macos.md): a 6 MB universal, LGPL-only ffmpeg built from pinned sources with one task, embedded with `go:embed`, unpacked to the user cache and ad-hoc signed on first use.
@@ -11,4 +17,6 @@ A step-by-step build log of AudioExtractor, a tiny desktop app (macOS + Windows)
 7. [Batches, folder drops and Zoom naming](07-batches-and-zoom-names.md): expanding folders, a folder dialog for several inputs, collision suffixes, Zoom meeting-folder names, sequential runs with a failure summary, and cancel mid-batch.
 8. [Launch with files](08-launch-with-files.md): Dock-icon drops, exe drops and "Open with" through macOS open-file events, Windows arguments and a single instance, with a debounce that makes one batch and a gate that waits for the frontend.
 9. [Window polish and a custom icon](09-window-polish-and-icon.md): a hand-drawn SVG icon with hinted small sizes turned into `.icns`, Liquid Glass `Assets.car` and `.ico` by one task (and why builds kept rewriting `Assets.car`), native light/dark backgrounds, a remembered window position clamped to the connected screens, and a version stamped from `git describe`.
+10. [Testing Windows from a Mac](10-testing-windows-from-a-mac.md): driving a Windows 11 VM from the command line to run the exe end to end. *(Being written in parallel with chapter 12: if the link is dead, the chapter has not been merged yet.)*
 11. [Hardening from a code review](11-hardening-from-a-code-review.md): eight bugs a review found behind green tests (quitting mid-job, a folder named "Partial file reviews", silent overwrites, unsupported formats called damaged, a crash blamed on the file, a launch race, French plurals), why each happened, and the fix.
+12. [Shipping it: licences, release and first-launch notes](12-shipping-it.md): the LGPL obligations of a bundled ffmpeg and where the notice lives in each app, one release task that builds, packs, verifies and checksums, and the short notes that get a non-technical person past Gatekeeper and SmartScreen.
