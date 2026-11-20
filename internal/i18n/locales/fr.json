@@ -33,6 +33,7 @@
   "folder.title": "Choisissez où enregistrer les fichiers audio",
   "working.count": "Fichier {index} sur {total}",
   "error.empty-folder": "Ce dossier ne contient aucun fichier vidéo ou audio. Déposez les enregistrements eux-mêmes, ou choisissez un autre dossier.",
+  "error.unsupported-format": "Ce type de fichier n’est pas pris en charge. AudioExtractor fonctionne avec les fichiers MP4, MOV, MKV, WEBM, M4A, MP3, WAV et AAC.",
   "summary.title.ok": "{done} fichiers terminés",
   "summary.title.mixed": "{done} réussis, {failed} en échec",
   "summary.title.stopped": "Arrêté après {n} sur {total}",

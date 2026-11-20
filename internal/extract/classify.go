@@ -147,6 +147,7 @@ var mediaExts = map[string]bool{
 	".mp4": true, ".m4a": true, ".m4v": true, ".mov": true, ".mkv": true, ".webm": true,
 	".avi": true, ".mp3": true, ".wav": true, ".aac": true, ".flac": true, ".ogg": true,
 	".wma": true, ".wmv": true, ".3gp": true, ".ts": true, ".zoom": true,
+	".oga": true, ".asf": true, ".mts": true, ".m2ts": true, ".aiff": true, ".aif": true,
 }
 
 // sniff classifies the first bytes of a file.
@@ -193,6 +194,28 @@ func isText(b []byte) bool {
 		}
 	}
 	return true
+}
+
+// unsupportedExts are media formats that AudioExtractor's slim ffmpeg has no
+// demuxer for: a valid file of one of these kinds is "not supported", not
+// "damaged". (inputs.go's folderExts is the supported set.) 3GP is not here:
+// the MOV demuxer reads it, so a 3GP that fails to open really is damaged.
+var unsupportedExts = map[string]bool{
+	".avi": true, ".flac": true, ".ogg": true, ".oga": true, ".wma": true, ".wmv": true,
+	".asf": true, ".ts": true, ".mts": true, ".m2ts": true, ".aiff": true, ".aif": true,
+}
+
+// classifyUnopenable decides for a file ffmpeg could not open at all. diag is
+// the diagnostics of ffmpeg's log. A known media extension we do not support,
+// rejected by ffmpeg as invalid data (which is what a missing demuxer looks
+// like), is an unsupported format; the rest is classifyBroken's call. Text and
+// empty files keep their own, more useful, messages.
+func classifyUnopenable(name string, looks Looks, diag string) ErrorKind {
+	ext := strings.ToLower(filepath.Ext(name))
+	if unsupportedExts[ext] && looks != LooksText && looks != LooksEmpty && logSaysInputBroken(diag) {
+		return KindUnsupportedFormat
+	}
+	return classifyBroken(name, looks)
 }
 
 // classifyBroken decides, for a file ffmpeg could not read, between

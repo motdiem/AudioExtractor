@@ -33,6 +33,7 @@
   "folder.title": "Choose where to save the audio files",
   "working.count": "File {index} of {total}",
   "error.empty-folder": "This folder has no video or audio files. Drop the recordings themselves, or choose another folder.",
+  "error.unsupported-format": "This kind of file isn't supported. AudioExtractor works with MP4, MOV, MKV, WEBM, M4A, MP3, WAV and AAC files.",
   "summary.title.ok": "{done} files done",
   "summary.title.mixed": "{done} done, {failed} failed",
   "summary.title.stopped": "Stopped after {n} of {total}",

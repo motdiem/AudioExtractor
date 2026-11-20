@@ -54,6 +54,7 @@ const (
 	KindDestinationUnwritable ErrorKind = "destination-unwritable" // permission, disk full, read-only or offline folder
 	KindOutputLocked          ErrorKind = "output-locked"          // the file to replace is open elsewhere
 	KindEmptyFolder           ErrorKind = "empty-folder"           // a dropped folder holds no media files
+	KindUnsupportedFormat     ErrorKind = "unsupported-format"     // valid media our ffmpeg cannot read (AVI, FLAC...)
 	KindCancelled             ErrorKind = "cancelled"              // silent: no message
 )
 
@@ -61,6 +62,7 @@ const (
 var MessageKinds = []ErrorKind{
 	KindFailed, KindNoAudio, KindUnreadable, KindNotMedia,
 	KindDestinationUnwritable, KindOutputLocked, KindEmptyFolder,
+	KindUnsupportedFormat,
 }
 
 // Phase is the stage the window should show.

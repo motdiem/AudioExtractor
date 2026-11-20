@@ -175,7 +175,7 @@ func extract(ctx context.Context, bin, src, dest string, f Format, onProgress fu
 	}
 	if !info.anyStream {
 		// ffmpeg opened nothing: damaged or unfinished media, or not media.
-		return log, classifyBroken(src, sniffFile(src)), fmt.Errorf("no streams found in %s", filepath.Base(src))
+		return log, classifyUnopenable(src, sniffFile(src), diagnostics(log, src)), fmt.Errorf("no streams found in %s", filepath.Base(src))
 	}
 	if info.audioCodec == "" {
 		return log, KindNoAudio, fmt.Errorf("no audio stream in %s", filepath.Base(src))
@@ -217,7 +217,7 @@ func extract(ctx context.Context, bin, src, dest string, f Format, onProgress fu
 		case logSaysWriteFailed(diag):
 			return log, KindDestinationUnwritable, err
 		case logSaysInputBroken(diag):
-			return log, classifyBroken(src, sniffFile(src)), err
+			return log, classifyUnopenable(src, sniffFile(src), diag), err
 		}
 		return log, KindFailed, err
 	}
