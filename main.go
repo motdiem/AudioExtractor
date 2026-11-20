@@ -18,6 +18,7 @@ import (
 	"github.com/motdiem/AudioExtractor/internal/i18n"
 	"github.com/motdiem/AudioExtractor/internal/launch"
 	"github.com/motdiem/AudioExtractor/internal/settings"
+	"github.com/motdiem/AudioExtractor/internal/window"
 )
 
 // The built frontend (frontend/dist) is embedded into the binary.
@@ -25,7 +26,8 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
-// version is set at release time with -ldflags "-X main.version=...".
+// version is stamped by the build tasks with -ldflags "-X main.version=..."
+// from `git describe --tags --always --dirty` (see build/Taskfile.yml).
 var version = "dev"
 
 // launchDebounce merges files that arrive in quick succession into one batch.
@@ -106,19 +108,33 @@ func main() {
 		launcher.Add(launch.Filter(os.Args[1:], nil)...)
 	}
 
-	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:     "AudioExtractor",
-		Width:     420,
-		Height:    320,
-		MinWidth:  420,
-		MinHeight: 320,
-		MaxWidth:  420,
-		MaxHeight: 320,
-		URL:       "/",
+	opts := application.WebviewWindowOptions{
+		Title: "AudioExtractor",
+		// Fixed size: min = max, and not resizable.
+		Width:         420,
+		Height:        320,
+		MinWidth:      420,
+		MinHeight:     320,
+		MaxWidth:      420,
+		MaxHeight:     320,
+		DisableResize: true,
+		// A fixed window has nothing to maximise (or, on macOS, zoom to).
+		MaximiseButtonState: application.ButtonDisabled,
+		URL:                 "/",
 		// Files dropped on an element marked data-file-drop-target raise
 		// WindowFilesDropped below.
 		EnableFileDrop: true,
-	})
+		// Light or dark like the system: the title bar follows on its own
+		// (Mac appearance left unset, Windows SystemDefault theme); the native
+		// background behind the page is ours to match (window.FollowTheme).
+		BackgroundColour: window.InitialBackground(),
+		Windows:          application.WindowsWindow{Theme: application.SystemDefault},
+		Mac:              application.MacWindow{Backdrop: application.MacBackdropNormal},
+	}
+	window.Restore(&opts, store)
+	win := app.Window.NewWithOptions(opts)
+	window.Track(app, win, store)
+	window.FollowTheme(app, win)
 	port.Window = win
 
 	win.OnWindowEvent(events.Common.WindowFilesDropped, func(e *application.WindowEvent) {

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Icon Composer layer: the waveform of ../../appicon.svg (keep in sync). -->
+  <g fill="#ffc53d" transform="translate(12 0)">
+    <rect x="272" y="452" width="80" height="120" rx="40"/>
+    <rect x="400" y="402" width="80" height="220" rx="40"/>
+    <rect x="528" y="362" width="80" height="300" rx="40"/>
+    <rect x="656" y="252" width="80" height="520" rx="40"/>
+    <rect x="784" y="342" width="80" height="340" rx="40"/>
+  </g>
+</svg>

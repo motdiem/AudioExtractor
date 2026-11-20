@@ -1,5 +1,7 @@
 {
   "app.title": "AudioExtractor",
+  "app.subtitle": "Audio extractor",
+  "version.label": "Version {version}",
   "drop.title": "Drop recordings or a folder",
   "drop.hint": "or click to choose files",
   "drop.release": "Release to extract the audio",
