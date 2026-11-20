@@ -36,7 +36,7 @@ Windows "hidden" file attributes are not checked, only the dot prefix; Zoom fold
 
 With two or more items the Save dialog would mean N dialogs, so we ask for one folder (`SetDirectory` starts it in the first source's folder). Outputs use the suggested names. There is no replace prompt in batch mode, so we never overwrite: `uniqueName` appends ` (2)`, ` (3)`... when the name exists in the folder or was already used earlier in the same batch (compared case-insensitively, since macOS and Windows file systems are).
 
-The picker is multi-select (`PromptForMultipleSelection`). On macOS it can also pick folders; the Windows dialog cannot mix files and folders, so on Windows folders arrive by drop (and, later, "Open with").
+The picker is multi-select (`PromptForMultipleSelection`). On macOS it can also pick folders; the Windows dialog cannot mix files and folders, so on Windows folders arrive by drop (and, since chapter 8, "Open with").
 
 ## Zoom naming
 

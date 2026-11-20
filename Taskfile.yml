@@ -44,22 +44,28 @@ tasks:
   release:
     summary: Builds the distributable artifacts into dist/ (run from a Mac)
     desc: |
-      dist/AudioExtractor-mac.zip  universal (arm64+amd64), ad-hoc-signed .app
-      dist/AudioExtractor.exe      Windows x64, single file, no CGO
+      Builds both ffmpegs if missing, both apps, then packs and verifies:
+      dist/AudioExtractor-mac.zip      universal (arm64+amd64), ad-hoc-signed .app + notes
+      dist/AudioExtractor-windows.zip  the exe + notes (the one to send)
+      dist/AudioExtractor.exe          the same exe on its own (Windows x64, no CGO)
+      Every archive carries README-EN.txt, LISEZ-MOI-FR.txt and THIRD_PARTY_NOTICES.txt;
+      the apps also embed the notice. Checksums are printed and kept in dist/SHA256SUMS.txt.
+    env:
+      VERSION: "{{.VERSION}}"
     cmds:
       - rm -rf dist
       - mkdir -p dist
       # The app embeds internal/ffmpeg/bin/darwin/ffmpeg; build it if missing or stale.
       - task: ffmpeg:mac:ensure
       - task: darwin:package:universal
-      - ditto -c -k --keepParent "{{.BIN_DIR}}/{{.APP_NAME}}.app" "dist/{{.APP_NAME}}-mac.zip"
+      - bash scripts/release/pack-mac.sh
       # Same for the Windows exe, which embeds internal/ffmpeg/bin/windows/ffmpeg.exe.
       - task: ffmpeg:windows:ensure
       - task: windows:build
         vars:
           ARCH: amd64
           CGO_ENABLED: "0"
-      - cp "{{.BIN_DIR}}/{{.APP_NAME}}.exe" "dist/{{.APP_NAME}}.exe"
+      - bash scripts/release/pack-windows.sh
       # Go refuses to overwrite a fat (universal) binary, which would break `task dev` afterwards.
       - rm -f "{{.BIN_DIR}}/{{.APP_NAME}}"
-      - ls -lh dist
+      - bash scripts/release/verify.sh

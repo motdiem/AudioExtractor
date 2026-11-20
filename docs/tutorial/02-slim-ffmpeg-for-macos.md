@@ -255,7 +255,9 @@ This runs `TestBundledFFmpegRuns`: the real embedded binary is unpacked to the r
 ffmpeg version 9.0.2 Copyright (c) 2000-2026 the FFmpeg developers
 ```
 
-The app also does it at startup (`ffmpeg_check.go`, temporary until the extraction feature uses ffmpeg for real), so `wails3 task dev` prints a line like `ffmpeg: ffmpeg version 9.0.2 (.../ffmpeg-8eeefbd6add3/ffmpeg)`. We checked the released `.app` too: launched normally it unpacked the arm64 slice, and launched with `arch -x86_64` it unpacked and ran the x86_64 slice.
+> **Update:** that startup check was temporary and is gone: chapter 4 uses ffmpeg for real.
+
+The app also did it at startup (`ffmpeg_check.go`), so `wails3 task dev` prints a line like `ffmpeg: ffmpeg version 9.0.2 (.../ffmpeg-8eeefbd6add3/ffmpeg)`. We checked the released `.app` too: launched normally it unpacked the arm64 slice, and launched with `arch -x86_64` it unpacked and ran the x86_64 slice.
 
 We also ran the conversions the app will need, on test clips generated with Homebrew's ffmpeg:
 

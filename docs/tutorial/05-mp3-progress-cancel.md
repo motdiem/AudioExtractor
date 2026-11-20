@@ -67,7 +67,7 @@ var f string
 ok := store.Get("format", &f)
 ```
 
-Values are kept as `json.RawMessage`, so each feature owns its key and its Go type and the store never needs to know them. Ticket #10 will add a `"window"` key for the window position without touching the package. Choices worth copying:
+Values are kept as `json.RawMessage`, so each feature owns its key and its Go type and the store never needs to know them. Ticket #10 will add a `"window"` key for the window position without touching the package (it did, in chapter 9). Choices worth copying:
 
 - A missing or corrupt file reads as empty. Settings are a convenience; they must never stop the app from starting.
 - `Set` rewrites the whole file through a temp file and a rename, like the audio output.

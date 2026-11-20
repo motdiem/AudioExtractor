@@ -1,0 +1,52 @@
+AudioExtractor pour Windows – premier lancement
+===============================================
+
+AudioExtractor extrait le son d’un enregistrement Zoom. Glissez la vidéo sur
+la fenêtre, choisissez où enregistrer, c’est fini. Tout se passe sur votre PC :
+rien n’est envoyé sur Internet.
+
+1. AUCUNE INSTALLATION
+   AudioExtractor.exe est toute l’application. Pas d’installateur, pas de
+   droits administrateur. Décompressez-le et gardez-le où vous voulez, par
+   exemple dans Documents. Double-cliquez pour le lancer. (Glisser une vidéo
+   sur l’icône du .exe fonctionne aussi.)
+
+2. LA PREMIÈRE FOIS : « WINDOWS A PROTÉGÉ VOTRE ORDINATEUR »
+   L’app n’est pas signée avec un certificat payant : Windows SmartScreen
+   affiche donc une fenêtre bleue. Elle est sûre, et cela ne se produit que
+   jusqu’à ce que Windows ait vu le fichier plusieurs fois.
+
+   a) Cliquez sur « Informations complémentaires » (le petit lien dans la
+      fenêtre bleue).
+   b) Cliquez sur « Exécuter quand même ».
+
+   Si votre entreprise bloque cette option, demandez à votre service
+   informatique, ou faites un clic droit sur le .exe > Propriétés > cochez
+   « Débloquer » en bas > OK, puis rouvrez-le.
+
+3. L’UTILISER
+   Glissez un MP4 (ou un dossier Zoom entier) sur la fenêtre. Choisissez M4A
+   (instantané, meilleure qualité) ou MP3 (plus léger, lisible partout).
+
+   Si un message indique que WebView2 est absent, suivez le lien du message
+   (composant gratuit de Microsoft, déjà présent sur la plupart des PC
+   Windows 10/11).
+
+OÙ SONT RANGÉES LES CHOSES
+   - Vos fichiers audio : uniquement là où vous choisissez de les enregistrer.
+   - Un petit programme auxiliaire (ffmpeg), copié au premier usage :
+       %LocalAppData%\AudioExtractor
+   - Vos réglages (dernier format, position de la fenêtre) :
+       %AppData%\AudioExtractor
+   (Collez ces chemins dans la barre d’adresse de l’Explorateur de fichiers.)
+
+TOUT SUPPRIMER
+   Supprimez AudioExtractor.exe, puis les deux dossiers ci-dessus.
+
+LICENCES
+   AudioExtractor contient les logiciels libres FFmpeg et LAME. Leurs licences
+   sont dans THIRD_PARTY_NOTICES.txt (à côté du .exe, et derrière le lien
+   « Licences » de la fenêtre).
+
+Un souci ? Écrivez à la personne qui vous a envoyé l’app. Le numéro de version
+est en bas à droite de la fenêtre.

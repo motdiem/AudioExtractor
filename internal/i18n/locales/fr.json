@@ -4,6 +4,8 @@
   "webview2.message": "AudioExtractor a besoin de Microsoft WebView2 Runtime, qui n’est pas installé sur cet ordinateur.\n\nInstallez-le depuis {url} (sans droits d’administrateur), puis rouvrez AudioExtractor.\n\nOuvrir la page de téléchargement maintenant ?",
   "app.subtitle": "Extracteur audio",
   "version.label": "Version {version}",
+  "licences.link": "Licences",
+  "licences.title": "Licences des logiciels libres (FFmpeg, LAME et autres)",
   "drop.title": "Déposez des fichiers ou un dossier",
   "drop.hint": "ou cliquez pour choisir des fichiers",
   "drop.release": "Relâchez pour extraire l’audio",
