@@ -1,0 +1,29 @@
+version: '3'
+
+# Slim LGPL ffmpeg builds. Included from the root Taskfile as `ffmpeg:`.
+# Shared pins and configure flags live in config.sh; ticket #4 adds
+# `ffmpeg:windows` next to `ffmpeg:mac`, reusing config.sh and lib.sh.
+
+tasks:
+  mac:
+    desc: Builds the universal (arm64 + x86_64) slim ffmpeg into internal/ffmpeg/bin/darwin/
+    platforms: [darwin]
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - bash scripts/ffmpeg/build-mac.sh
+
+  mac:ensure:
+    summary: Builds the macOS ffmpeg only if it is missing or its build scripts changed
+    internal: true
+    platforms: [darwin]
+    dir: '{{.ROOT_DIR}}'
+    status:
+      - bash scripts/ffmpeg/build-mac.sh --is-current
+    cmds:
+      - task: mac
+
+  smoke:
+    desc: Unpacks the embedded ffmpeg through ffmpeg.Path() and runs `ffmpeg -version`
+    dir: '{{.ROOT_DIR}}'
+    cmds:
+      - go test -count=1 -run 'TestBundledFFmpegRuns' -v ./internal/ffmpeg
