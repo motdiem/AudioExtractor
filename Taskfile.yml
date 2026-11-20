@@ -51,4 +51,6 @@ tasks:
           ARCH: amd64
           CGO_ENABLED: "0"
       - cp "{{.BIN_DIR}}/{{.APP_NAME}}.exe" "dist/{{.APP_NAME}}.exe"
+      # Go refuses to overwrite a fat (universal) binary, which would break `task dev` afterwards.
+      - rm -f "{{.BIN_DIR}}/{{.APP_NAME}}"
       - ls -lh dist
