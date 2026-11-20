@@ -12,6 +12,8 @@ type Port interface {
 	ChooseSaveFile(req SaveRequest) (string, error)
 	// Reveal shows path selected in Finder / Explorer.
 	Reveal(path string) error
+	// CopyText puts text on the system clipboard.
+	CopyText(text string) error
 }
 
 // PickRequest describes the file picker.
