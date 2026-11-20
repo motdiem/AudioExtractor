@@ -8,8 +8,40 @@
 </head>
 <body>
 <main>
-    <h1>AudioExtractor</h1>
-    <p>Drop a Zoom recording here.</p>
+    <!-- Idle: the drop zone. Wails adds .file-drop-target-active while a file hovers over it. -->
+    <section id="idle" class="screen">
+        <button id="drop" class="zone" type="button" data-file-drop-target>
+            <svg class="icon" viewBox="0 0 48 48" aria-hidden="true">
+                <path d="M8 24v0M14 18v12M20 12v24M26 17v14M32 21v6M38 24v0"/>
+            </svg>
+            <span class="title" data-i18n="drop.title"></span>
+            <span class="hint" data-i18n="drop.hint"></span>
+        </button>
+    </section>
+
+    <section id="working" class="screen" hidden>
+        <p class="title" data-i18n="working.title"></p>
+        <div class="bar"><div class="bar-fill"></div></div>
+        <p class="hint" data-i18n="working.hint"></p>
+    </section>
+
+    <section id="done" class="screen" hidden>
+        <svg class="icon ok" viewBox="0 0 48 48" aria-hidden="true"><path d="M12 25l8 8 16-18"/></svg>
+        <p class="title" data-i18n="done.title"></p>
+        <p class="hint" id="done-hint"></p>
+        <div class="actions">
+            <button id="reveal" class="primary" type="button" data-i18n="done.show"></button>
+            <button id="again" class="link" type="button" data-i18n="done.again"></button>
+        </div>
+    </section>
+
+    <section id="error" class="screen" hidden>
+        <p class="title" data-i18n="error.title"></p>
+        <p class="hint" id="error-message"></p>
+        <div class="actions">
+            <button id="retry" class="primary" type="button" data-i18n="error.again"></button>
+        </div>
+    </section>
 </main>
 <script type="module" src="/src/main.ts"></script>
 </body>
