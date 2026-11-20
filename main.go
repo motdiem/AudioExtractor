@@ -29,6 +29,10 @@ var assets embed.FS
 // version is set at release time with -ldflags "-X main.version=...".
 var version = "dev"
 
+// singleInstanceID names the single-instance lock. Tests can build with
+// -ldflags "-X main.singleInstanceID=..." to run beside another copy.
+var singleInstanceID = "com.motdiem.audioextractor"
+
 // launchDebounce merges files that arrive in quick succession into one batch.
 const launchDebounce = 300 * time.Millisecond
 
@@ -83,7 +87,7 @@ func main() {
 		// One instance only: a second launch (say, files dropped on the exe
 		// while it runs) forwards its arguments here and exits.
 		SingleInstance: &application.SingleInstanceOptions{
-			UniqueID: "com.motdiem.audioextractor",
+			UniqueID: singleInstanceID,
 			OnSecondInstanceLaunch: func(data application.SecondInstanceData) {
 				if len(data.Args) > 1 {
 					launcher.Add(launch.Filter(data.Args[1:], nil)...)
