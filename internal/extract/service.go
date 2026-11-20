@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -55,6 +56,7 @@ const (
 	KindOutputLocked          ErrorKind = "output-locked"          // the file to replace is open elsewhere
 	KindEmptyFolder           ErrorKind = "empty-folder"           // a dropped folder holds no media files
 	KindUnsupportedFormat     ErrorKind = "unsupported-format"     // valid media our ffmpeg cannot read (AVI, FLAC...)
+	KindSameAsSource          ErrorKind = "same-as-source"         // the chosen output is the source file itself
 	KindCancelled             ErrorKind = "cancelled"              // silent: no message
 )
 
@@ -62,7 +64,7 @@ const (
 var MessageKinds = []ErrorKind{
 	KindFailed, KindNoAudio, KindUnreadable, KindNotMedia,
 	KindDestinationUnwritable, KindOutputLocked, KindEmptyFolder,
-	KindUnsupportedFormat,
+	KindUnsupportedFormat, KindSameAsSource,
 }
 
 // Phase is the stage the window should show.
@@ -230,7 +232,13 @@ func (s *Service) accept(paths []string, f Format) (items []Item, emptyFolders i
 		return nil, 0, err
 	}
 	for _, p := range files {
-		items = append(items, Item{Path: p, SuggestedName: SuggestName(p, f)})
+		name := SuggestName(p, f)
+		if strings.EqualFold(name, filepath.Base(p)) {
+			// MP3 from an .mp3, or Zoom's audio_only.m4a in M4A mode: the
+			// Save dialog must not open on the source itself.
+			name = uniqueName(filepath.Dir(p), name, map[string]bool{})
+		}
+		items = append(items, Item{Path: p, SuggestedName: name})
 	}
 	return items, emptyFolders, nil
 }
@@ -319,7 +327,17 @@ func (s *Service) runOne(ctx context.Context, it Item, f Format) Result {
 		return Result{Cancelled: true}
 	}
 	if !strings.EqualFold(filepath.Ext(dest), f.ext()) {
+		// The OS asked "replace?" about the name the user typed, not about
+		// this one: never overwrite a file nobody confirmed.
 		dest += f.ext()
+		if _, err := os.Lstat(dest); err == nil {
+			dest = filepath.Join(filepath.Dir(dest), uniqueName(filepath.Dir(dest), filepath.Base(dest), map[string]bool{}))
+		}
+	}
+	if sameFile(dest, it.Path) {
+		// The replace prompt cannot protect the source: ffmpeg would
+		// truncate the file it is reading.
+		return s.fail(KindSameAsSource, errors.New("the output is the source file"), it.Path)
 	}
 
 	out := s.extractItem(ctx, it, dest, f, 1, 1)
@@ -431,6 +449,29 @@ func (s *Service) runBatch(ctx context.Context, items []Item, f Format) Result {
 		Stopped: stopped, Failures: failures,
 	})
 	return res
+}
+
+// sameFile reports whether a and b are the same file: the same file on disk
+// when both exist, else the same path, ignoring case on macOS and Windows,
+// whose file systems usually do.
+func sameFile(a, b string) bool {
+	fa, errA := os.Stat(a)
+	fb, errB := os.Stat(b)
+	if errA == nil && errB == nil {
+		return os.SameFile(fa, fb)
+	}
+	a, b = absClean(a), absClean(b)
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
+}
+
+func absClean(p string) string {
+	if abs, err := filepath.Abs(p); err == nil {
+		return abs
+	}
+	return filepath.Clean(p)
 }
 
 // Reveal shows path in the file manager.
