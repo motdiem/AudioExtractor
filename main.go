@@ -18,6 +18,7 @@ import (
 	"github.com/motdiem/AudioExtractor/internal/i18n"
 	"github.com/motdiem/AudioExtractor/internal/launch"
 	"github.com/motdiem/AudioExtractor/internal/settings"
+	"github.com/motdiem/AudioExtractor/internal/webview2"
 )
 
 // The built frontend (frontend/dist) is embedded into the binary.
@@ -32,6 +33,11 @@ var version = "dev"
 const launchDebounce = 300 * time.Millisecond
 
 func main() {
+	// Windows without the WebView2 Runtime: explain and exit instead of
+	// failing to open a window. (Always true on macOS.)
+	if !webview2.Ensure(i18n.Detect()) {
+		return
+	}
 	port := &desktop.Port{}
 	// A settings problem must never stop the app: without a store the format
 	// choice simply lasts for the session.
