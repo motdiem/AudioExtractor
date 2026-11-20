@@ -47,9 +47,31 @@ type fakePort struct {
 	revealed   []string
 	copied     []string
 	saveError  error
+	infos      []string // ShowInfo titles
+	// pickGate, when set, makes ChooseInputs signal pickOpen and wait for
+	// the gate (a picker left open).
+	pickGate chan struct{}
+	pickOpen chan struct{}
 }
 
-func (f *fakePort) ChooseInputs(PickRequest) ([]string, error) { return f.picks, nil }
+func (f *fakePort) ChooseInputs(PickRequest) ([]string, error) {
+	if f.pickGate != nil {
+		f.pickOpen <- struct{}{}
+		<-f.pickGate
+	}
+	return f.picks, nil
+}
+func (f *fakePort) ShowInfo(title, _ string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.infos = append(f.infos, title)
+	return nil
+}
+func (f *fakePort) infoCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.infos)
+}
 func (f *fakePort) ChooseFolder(r FolderRequest) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

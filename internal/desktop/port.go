@@ -48,12 +48,17 @@ func (p *Port) ChooseFolder(req extract.FolderRequest) (string, error) {
 }
 
 func (p *Port) ChooseSaveFile(req extract.SaveRequest) (string, error) {
-	d := p.App.Dialog.SaveFile().
-		SetMessage(req.Title).
-		SetDirectory(req.Dir).
-		SetFilename(req.Name).
-		CanCreateDirectories(true).
-		AddFilter(req.FilterName, "*."+req.Extension)
+	// Windows shows the title, macOS the message: set both. v3's builder has
+	// no SetTitle for the Save dialog, so the options carry it.
+	d := p.App.Dialog.SaveFile()
+	d.SetOptions(&application.SaveFileDialogOptions{
+		Title:                req.Title,
+		Message:              req.Title,
+		Directory:            req.Dir,
+		Filename:             req.Name,
+		CanCreateDirectories: true,
+	})
+	d.AddFilter(req.FilterName, "*."+req.Extension)
 	if p.Window != nil {
 		d.AttachToWindow(p.Window)
 	}
@@ -61,6 +66,13 @@ func (p *Port) ChooseSaveFile(req extract.SaveRequest) (string, error) {
 }
 
 func (p *Port) Reveal(path string) error { return reveal(path) }
+
+// ShowInfo returns at once: callers include window event handlers, which
+// must not wait for the user to dismiss a dialog.
+func (p *Port) ShowInfo(title, message string) error {
+	go p.App.Dialog.Info().SetTitle(title).SetMessage(message).Show()
+	return nil
+}
 
 // CopyText puts text on the clipboard through Wails, which uses the native
 // clipboard on each OS (more reliable than the webview's, which needs a user

@@ -7,8 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -54,6 +56,8 @@ const (
 	KindDestinationUnwritable ErrorKind = "destination-unwritable" // permission, disk full, read-only or offline folder
 	KindOutputLocked          ErrorKind = "output-locked"          // the file to replace is open elsewhere
 	KindEmptyFolder           ErrorKind = "empty-folder"           // a dropped folder holds no media files
+	KindUnsupportedFormat     ErrorKind = "unsupported-format"     // valid media our ffmpeg cannot read (AVI, FLAC...)
+	KindSameAsSource          ErrorKind = "same-as-source"         // the chosen output is the source file itself
 	KindCancelled             ErrorKind = "cancelled"              // silent: no message
 )
 
@@ -61,6 +65,7 @@ const (
 var MessageKinds = []ErrorKind{
 	KindFailed, KindNoAudio, KindUnreadable, KindNotMedia,
 	KindDestinationUnwritable, KindOutputLocked, KindEmptyFolder,
+	KindUnsupportedFormat, KindSameAsSource,
 }
 
 // Phase is the stage the window should show.
@@ -93,6 +98,11 @@ type StateEvent struct {
 	Failed   int       `json:"failed"`
 	Stopped  bool      `json:"stopped"`
 	Failures []Failure `json:"failures"`
+	// Title and Counts are the summary's text, plurals already resolved
+	// ("1 file done", "2 réussis, 1 en échec"). Counts is set when the
+	// title does not already say it (a stopped batch).
+	Title  string `json:"title"`
+	Counts string `json:"counts"`
 }
 
 // Failure is one failed file in a batch summary.
@@ -148,11 +158,13 @@ type Service struct {
 	cfg  Config
 	msgs i18n.Catalog
 
-	busy sync.Mutex // held for the whole of a Run
+	busy sync.Mutex // held for the whole of a job (Pick, Run, TryRun)
 
-	mu     sync.Mutex // guards cancel and format
+	mu     sync.Mutex // guards cancel, closing and format
 	cancel context.CancelFunc
-	format Format
+	// closing is set once the app quits: no new job may start.
+	closing bool
+	format  Format
 	// details is the "Copy details" text for the error on screen.
 	details string
 }
@@ -202,6 +214,15 @@ func (s *Service) currentFormat() Format {
 // Lang returns the UI language code ("en" or "fr").
 func (s *Service) Lang() string { return string(s.cfg.Lang) }
 
+// Version is the build version shown on the idle screen and in "Copy
+// details": `git describe` stamped at build time, or "dev".
+func (s *Service) Version() string {
+	if s.cfg.Version == "" {
+		return "dev"
+	}
+	return s.cfg.Version
+}
+
 // Messages returns the UI catalog for the current language.
 func (s *Service) Messages() map[string]string { return s.msgs }
 
@@ -219,13 +240,26 @@ func (s *Service) accept(paths []string, f Format) (items []Item, emptyFolders i
 		return nil, 0, err
 	}
 	for _, p := range files {
-		items = append(items, Item{Path: p, SuggestedName: SuggestName(p, f)})
+		name := SuggestName(p, f)
+		if strings.EqualFold(name, filepath.Base(p)) {
+			// MP3 from an .mp3, or Zoom's audio_only.m4a in M4A mode: the
+			// Save dialog must not open on the source itself.
+			name = uniqueName(filepath.Dir(p), name, map[string]bool{})
+		}
+		items = append(items, Item{Path: p, SuggestedName: name})
 	}
 	return items, emptyFolders, nil
 }
 
-// Pick opens the file picker, then runs the extraction on the choice.
+// Pick opens the file picker, then runs the extraction on the choice. The
+// service is claimed before the picker opens, so a batch arriving meanwhile
+// (a launch with files) is the one refused.
 func (s *Service) Pick() Result {
+	ctx, ok := s.begin()
+	if !ok {
+		return Result{Cancelled: true}
+	}
+	defer s.end()
 	paths, err := s.cfg.Port.ChooseInputs(PickRequest{Title: s.msgs.T("pick.title")})
 	if err != nil {
 		return s.fail(KindFailed, err, "")
@@ -233,29 +267,89 @@ func (s *Service) Pick() Result {
 	if len(paths) == 0 {
 		return Result{Cancelled: true}
 	}
-	return s.Run(paths, "")
+	return s.run(ctx, paths, "")
 }
 
 // Run extracts the audio of paths into the given format ("m4a" or "mp3"; ""
 // means the remembered choice). Folders expand to their media files. A single
 // item opens the Save dialog; several open a folder dialog and run one after
-// another. Cancelling a dialog returns to idle.
+// another. Cancelling a dialog returns to idle. If another job is running,
+// the busy message is shown and nothing is done.
 func (s *Service) Run(paths []string, format string) Result {
-	if !s.busy.TryLock() {
+	ctx, ok := s.begin()
+	if !ok {
 		return Result{Cancelled: true}
 	}
-	defer s.busy.Unlock()
+	defer s.end()
+	return s.run(ctx, paths, format)
+}
 
+// TryRun starts Run in the background and returns at once: true if the job
+// started, false if another one was running (the busy message is then
+// shown). Checking and claiming are one step, so two batches arriving
+// together (a drop and a launch) can never both start.
+func (s *Service) TryRun(paths []string, format string) bool {
+	ctx, ok := s.begin()
+	if !ok {
+		return false
+	}
+	go func() {
+		defer s.end()
+		s.run(ctx, paths, format)
+	}()
+	return true
+}
+
+// begin claims the service for one job and makes the context Cancel stops.
+// When the service is taken it tells the user (see refuse) and returns false.
+// After ServiceShutdown nothing starts, silently.
+func (s *Service) begin() (context.Context, bool) {
+	if !s.busy.TryLock() {
+		s.mu.Lock()
+		closing := s.closing
+		s.mu.Unlock()
+		if !closing {
+			s.refuse()
+		}
+		return nil, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closing {
+		s.busy.Unlock()
+		return nil, false
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancel = cancel
+	return ctx, true
+}
+
+// end releases the service claimed by begin.
+func (s *Service) end() {
+	s.mu.Lock()
+	if s.cancel != nil {
+		s.cancel()
+		s.cancel = nil
+	}
+	s.mu.Unlock()
+	s.busy.Unlock()
+}
+
+// refuse tells the user a new job cannot start while one is running. The
+// message is the same whatever asked: a drop, the picker or a launch.
+func (s *Service) refuse() {
+	// A failure to show it leaves nothing better to do: the job goes on.
+	_ = s.cfg.Port.ShowInfo(s.msgs.T("busy.title"), s.msgs.T("busy.message"))
+}
+
+func (s *Service) run(ctx context.Context, paths []string, format string) Result {
+	if ctx.Err() != nil {
+		return Result{Cancelled: true} // quit while the picker was open
+	}
 	f, ok := ParseFormat(format)
 	if !ok {
 		f = s.currentFormat()
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	s.mu.Lock()
-	s.cancel = cancel
-	s.mu.Unlock()
-	defer cancel()
 
 	items, empty, err := s.accept(paths, f)
 	switch {
@@ -271,14 +365,29 @@ func (s *Service) Run(paths []string, format string) Result {
 	return s.runBatch(ctx, items, f)
 }
 
-// Busy reports whether a Run is in progress (a Run started now would be
-// refused).
-func (s *Service) Busy() bool {
-	if s.busy.TryLock() {
-		s.busy.Unlock()
-		return false
+// shutdownWait bounds how long quitting waits for a job to clean up.
+const shutdownWait = 2 * time.Second
+
+// ServiceShutdown is called by Wails when the app quits (Cmd+Q, closing the
+// window, logging out). It cancels the job in progress, if any, and waits up
+// to shutdownWait for it to finish cleaning up: ffmpeg killed, the
+// .audioextractor-*.part file removed. Without this, ffmpeg was orphaned and
+// the temporary file stayed in the user's folder. A job stuck in a native
+// dialog cannot be waited for; the app then quits anyway.
+func (s *Service) ServiceShutdown() error {
+	s.mu.Lock()
+	s.closing = true
+	s.mu.Unlock()
+	s.Cancel()
+	deadline := time.Now().Add(shutdownWait)
+	for !s.busy.TryLock() {
+		if time.Now().After(deadline) {
+			return errors.New("extraction still running at quit")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
-	return true
+	s.busy.Unlock()
+	return nil
 }
 
 // Cancel stops the running extraction, if any: ffmpeg is killed, the partial
@@ -308,7 +417,17 @@ func (s *Service) runOne(ctx context.Context, it Item, f Format) Result {
 		return Result{Cancelled: true}
 	}
 	if !strings.EqualFold(filepath.Ext(dest), f.ext()) {
+		// The OS asked "replace?" about the name the user typed, not about
+		// this one: never overwrite a file nobody confirmed.
 		dest += f.ext()
+		if _, err := os.Lstat(dest); err == nil {
+			dest = filepath.Join(filepath.Dir(dest), uniqueName(filepath.Dir(dest), filepath.Base(dest), map[string]bool{}))
+		}
+	}
+	if sameFile(dest, it.Path) {
+		// The replace prompt cannot protect the source: ffmpeg would
+		// truncate the file it is reading.
+		return s.fail(KindSameAsSource, errors.New("the output is the source file"), it.Path)
 	}
 
 	out := s.extractItem(ctx, it, dest, f, 1, 1)
@@ -414,12 +533,52 @@ func (s *Service) runBatch(ctx context.Context, items []Item, f Format) Result {
 		s.emit(StateEvent{Phase: PhaseIdle})
 		return res
 	}
+	title, counts := s.summaryText(done, len(failures), len(items), stopped)
 	s.emit(StateEvent{
 		Phase: PhaseSummary, Index: done + len(failures), Total: len(items),
 		Percent: 100, Output: firstOut, Done: done, Failed: len(failures),
-		Stopped: stopped, Failures: failures,
+		Stopped: stopped, Failures: failures, Title: title, Counts: counts,
 	})
 	return res
+}
+
+// summaryText is the batch summary's title and, for a stopped batch, the
+// counts line under it.
+func (s *Service) summaryText(done, failed, total int, stopped bool) (title, counts string) {
+	lang := s.cfg.Lang
+	both := s.msgs.T("summary.counts",
+		"done", s.msgs.N(lang, "count.done", done),
+		"failed", s.msgs.N(lang, "count.failed", failed))
+	switch {
+	case stopped:
+		return s.msgs.T("summary.title.stopped", "n", strconv.Itoa(done+failed), "total", strconv.Itoa(total)), both
+	case failed == 0:
+		return s.msgs.N(lang, "summary.title.ok", done), ""
+	}
+	return both, ""
+}
+
+// sameFile reports whether a and b are the same file: the same file on disk
+// when both exist, else the same path, ignoring case on macOS and Windows,
+// whose file systems usually do.
+func sameFile(a, b string) bool {
+	fa, errA := os.Stat(a)
+	fb, errB := os.Stat(b)
+	if errA == nil && errB == nil {
+		return os.SameFile(fa, fb)
+	}
+	a, b = absClean(a), absClean(b)
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		return strings.EqualFold(a, b)
+	}
+	return a == b
+}
+
+func absClean(p string) string {
+	if abs, err := filepath.Abs(p); err == nil {
+		return abs
+	}
+	return filepath.Clean(p)
 }
 
 // Reveal shows path in the file manager.
@@ -457,12 +616,8 @@ func (s *Service) setDetails(outs ...Outcome) {
 // detailsText is what a person pastes into an email to us: a short header and
 // the raw ffmpeg log. The header carries only the file name; the log is ffmpeg's own and may include the path.
 func (s *Service) detailsText(o Outcome) string {
-	version := s.cfg.Version
-	if version == "" {
-		version = "dev"
-	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "AudioExtractor %s\nOS: %s/%s\n", version, runtime.GOOS, runtime.GOARCH)
+	fmt.Fprintf(&b, "AudioExtractor %s\nOS: %s/%s\n", s.Version(), runtime.GOOS, runtime.GOARCH)
 	if o.Source != "" {
 		fmt.Fprintf(&b, "File: %s\n", filepath.Base(o.Source))
 	}

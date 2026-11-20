@@ -4,8 +4,8 @@ import * as Extract from "../bindings/github.com/motdiem/AudioExtractor/internal
 // All the logic lives in the Go service. This file only shows its state:
 // the service emits "extract:state" and we swap the matching screen.
 
-type Phase = "idle" | "working" | "done" | "error" | "summary";
-interface StateEvent {
+export type Phase = "idle" | "working" | "done" | "error" | "summary";
+export interface StateEvent {
     phase: Phase;
     index: number; // 1-based item position in a batch
     total: number;
@@ -13,6 +13,8 @@ interface StateEvent {
     failed: number;
     stopped: boolean;
     failures: { name: string; message: string }[] | null;
+    title: string; // summary only: Go resolves the plurals
+    counts: string;
     percent: number; // 0-100, or -1 when unknown
     name: string;
     output: string;
@@ -62,14 +64,9 @@ function showCount(e: StateEvent) {
 
 function showSummary(e: StateEvent) {
     output = e.output;
-    const title = e.stopped
-        ? t("summary.title.stopped", { n: String(e.index), total: String(e.total) })
-        : e.failed === 0
-          ? t("summary.title.ok", { done: String(e.done) })
-          : t("summary.title.mixed", { done: String(e.done), failed: String(e.failed) });
-    $("summary-title").textContent = title;
-    // The title already says it unless the batch was stopped.
-    $("summary-counts").textContent = e.stopped ? t("summary.counts", { done: String(e.done), failed: String(e.failed) }) : "";
+    $("summary-title").textContent = e.title;
+    // Set for a stopped batch only: otherwise the title already says it.
+    $("summary-counts").textContent = e.counts;
     const list = $("failures");
     list.replaceChildren(
         ...(e.failures ?? []).map((f) => {
@@ -119,13 +116,45 @@ function onState(e: StateEvent) {
     show(e.phase);
 }
 
-async function main() {
-    messages = (await Extract.Messages()) as Record<string, string>;
-    document.documentElement.lang = await Extract.Lang();
+// The subtitle translates the app name; it is only worth showing when the
+// translation differs from the name itself (French: "Extracteur audio").
+const sameName = (a: string, b: string) => a.replace(/\s/g, "").toLowerCase() === b.replace(/\s/g, "").toLowerCase();
+
+function showStatic(version: string) {
     document.title = t("app.title");
     document.querySelectorAll<HTMLElement>("[data-i18n]").forEach((el) => {
         el.textContent = t(el.dataset.i18n!);
     });
+    document.querySelectorAll<HTMLElement>("[data-i18n-label]").forEach((el) => {
+        el.setAttribute("aria-label", t(el.dataset.i18nLabel!));
+    });
+    const subtitle = $("subtitle");
+    subtitle.textContent = t("app.subtitle");
+    subtitle.hidden = sameName(t("app.subtitle"), t("app.title"));
+    const v = $("version");
+    v.textContent = version;
+    v.title = t("version.label", { version });
+}
+
+async function main() {
+    // Dev server only (stripped from builds): ?screen=error&lang=fr renders a
+    // screen with sample data, without the Go side, for layout checks.
+    if (import.meta.env.DEV) {
+        const { preview } = await import("./preview");
+        const p = preview(new URLSearchParams(location.search));
+        if (p) {
+            messages = p.messages;
+            document.documentElement.lang = p.lang;
+            showStatic(p.version);
+            onState(p.state);
+            if (p.state.phase === "working") show("working"); // skip the 0.5 s delay
+            return;
+        }
+    }
+
+    messages = (await Extract.Messages()) as Record<string, string>;
+    document.documentElement.lang = await Extract.Lang();
+    showStatic(await Extract.Version());
 
     // Wails raises this one while a file hovers over the drop zone, so we can
     // swap the label too (the highlight itself is CSS on .file-drop-target-active).
@@ -135,10 +164,6 @@ async function main() {
     new MutationObserver(() => {
         title.textContent = drop.classList.contains("file-drop-target-active") ? t("drop.release") : idleTitle;
     }).observe(drop, { attributes: true, attributeFilter: ["class"] });
-
-    document.querySelectorAll<HTMLElement>("[data-i18n-label]").forEach((el) => {
-        el.setAttribute("aria-label", t(el.dataset.i18nLabel!));
-    });
 
     // Format toggle: Go owns the value (and remembers it); we just mirror it.
     const buttons = document.querySelectorAll<HTMLButtonElement>("#format button");

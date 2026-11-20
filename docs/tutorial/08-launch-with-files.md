@@ -25,7 +25,7 @@ On a cold launch the open-file event arrives almost at once, before the webview 
 
 ## macOS: declaring document types
 
-macOS only lists an app in "Open with" and accepts Dock drops if `Info.plist` declares `CFBundleDocumentTypes`. We declare `public.movie`, `public.audio` and a few specific types, with `CFBundleTypeRole` Editor and `LSHandlerRank` **Alternate**: we show up in the menu but never become the default app for `.mp4`. A second entry with `public.folder` (role Viewer) lets whole folders be dropped on the Dock icon.
+macOS only lists an app in "Open with" and accepts Dock drops if `Info.plist` declares `CFBundleDocumentTypes`. We declare the specific types we can read (MP4, M4V, MOV, M4A, MP3, WAV, AAC, plus `mkv` and `webm` by extension; chapter 11 explains why not the generic `public.movie` and `public.audio`), with `CFBundleTypeRole` Editor and `LSHandlerRank` **Alternate**: we show up in the menu but never become the default app for `.mp4`. A second entry with `public.folder` (role Viewer) lets whole folders be dropped on the Dock icon.
 
 Wails has a `fileAssociations` section in `build/config.yml`, but it needs one entry per extension and regenerating the build assets overwrites our edited plists. Declaring UTIs by hand, in `Info.plist` and `Info.dev.plist`, is shorter and keeps control of the rank.
 

@@ -19,6 +19,7 @@ import (
 	"github.com/motdiem/AudioExtractor/internal/launch"
 	"github.com/motdiem/AudioExtractor/internal/settings"
 	"github.com/motdiem/AudioExtractor/internal/webview2"
+	"github.com/motdiem/AudioExtractor/internal/window"
 )
 
 // The built frontend (frontend/dist) is embedded into the binary.
@@ -26,7 +27,8 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
-// version is set at release time with -ldflags "-X main.version=...".
+// version is stamped by the build tasks with -ldflags "-X main.version=..."
+// from `git describe --tags --always --dirty` (see build/Taskfile.yml).
 var version = "dev"
 
 // singleInstanceID names the single-instance lock. Tests can build with
@@ -63,18 +65,12 @@ func main() {
 	// Files the OS opens us with (Dock icon, "Open with", command line, a
 	// second launch) are gathered into batches, held until the frontend says
 	// it is ready, then sent down the same path as a window drop.
-	var app *application.App
 	launcher := launch.New(launchDebounce, func(paths []string) {
-		if svc.Busy() {
-			// Simplest robust option: tell the user instead of queueing.
-			msgs := svc.Messages()
-			app.Dialog.Info().SetTitle(msgs["busy.title"]).SetMessage(msgs["busy.message"]).Show()
-			return
-		}
-		go svc.Run(paths, "") // "" = the remembered format
+		// Busy: the service tells the user instead of queueing.
+		svc.TryRun(paths, "") // "" = the remembered format
 	})
 
-	app = application.New(application.Options{
+	app := application.New(application.Options{
 		Name:        "AudioExtractor",
 		Description: "Extract the audio from a Zoom recording",
 		Services:    []application.Service{application.NewService(svc)},
@@ -116,19 +112,33 @@ func main() {
 		launcher.Add(launch.Filter(os.Args[1:], nil)...)
 	}
 
-	win := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:     "AudioExtractor",
-		Width:     420,
-		Height:    320,
-		MinWidth:  420,
-		MinHeight: 320,
-		MaxWidth:  420,
-		MaxHeight: 320,
-		URL:       "/",
+	opts := application.WebviewWindowOptions{
+		Title: "AudioExtractor",
+		// Fixed size: min = max, and not resizable.
+		Width:         420,
+		Height:        320,
+		MinWidth:      420,
+		MinHeight:     320,
+		MaxWidth:      420,
+		MaxHeight:     320,
+		DisableResize: true,
+		// A fixed window has nothing to maximise (or, on macOS, zoom to).
+		MaximiseButtonState: application.ButtonDisabled,
+		URL:                 "/",
 		// Files dropped on an element marked data-file-drop-target raise
 		// WindowFilesDropped below.
 		EnableFileDrop: true,
-	})
+		// Light or dark like the system: the title bar follows on its own
+		// (Mac appearance left unset, Windows SystemDefault theme); the native
+		// background behind the page is ours to match (window.FollowTheme).
+		BackgroundColour: window.InitialBackground(),
+		Windows:          application.WindowsWindow{Theme: application.SystemDefault},
+		Mac:              application.MacWindow{Backdrop: application.MacBackdropNormal},
+	}
+	window.Restore(&opts, store)
+	win := app.Window.NewWithOptions(opts)
+	window.Track(app, win, store)
+	window.FollowTheme(app, win)
 	port.Window = win
 
 	win.OnWindowEvent(events.Common.WindowFilesDropped, func(e *application.WindowEvent) {
@@ -137,7 +147,7 @@ func main() {
 			return
 		}
 		// The handler must return quickly: the dialog and ffmpeg run on their own goroutine.
-		go svc.Run(files, "") // "" = the remembered format
+		svc.TryRun(files, "") // "" = the remembered format
 	})
 
 	if err := app.Run(); err != nil {

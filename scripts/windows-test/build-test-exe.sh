@@ -15,6 +15,6 @@ env -u GOPATH wails3 task common:build:frontend >/dev/null
 env -u GOPATH wails3 task windows:generate:syso ARCH=amd64 >/dev/null
 trap 'rm -f ./*.syso' EXIT
 env -u GOPATH GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build $tags -trimpath -buildvcs=false \
-  -ldflags="-w -s -H windowsgui -X main.singleInstanceID=com.motdiem.audioextractor.vmtest" -o "$out" .
+  -ldflags="-w -s -H windowsgui -X main.version=$(git describe --tags --always --dirty)-vmtest -X main.singleInstanceID=com.motdiem.audioextractor.vmtest" -o "$out" .
 git checkout -- build/darwin/Assets.car 2>/dev/null || true
 ls -l "$out"

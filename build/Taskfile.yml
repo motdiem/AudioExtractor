@@ -191,17 +191,45 @@ tasks:
       - wails3 generate bindings -f '{{.BUILD_FLAGS}}' -clean=true{{if eq .OBFUSCATED "true"}} -obfuscated{{end}} -ts -i
 
   generate:icons:
-    summary: Generates Windows `.ico` and Mac `.icns` from an image; on macOS, `-iconcomposerinput appicon.icon -macassetdir darwin` also produces `Assets.car` from a `.icon` file (skipped on other platforms).
+    summary: Makes sure the generated icons exist (they are committed; see icons:render)
+    # Every build depends on this task. The icons are committed, so a normal
+    # build skips it: regenerating them is not reproducible (actool writes a
+    # different Assets.car on every run), which used to dirty the tree.
     run: once
     dir: build
-    sources:
-      - "appicon.png"
-      - "appicon.icon"
-    generates:
-      - "darwin/icons.icns"
-      - "windows/icon.ico"
+    status:
+      - test -f appicon.png
+      - test -f darwin/icons.icns
+      - test -f darwin/Assets.car
+      - test -f windows/icon.ico
     cmds:
+      - task: icons:render
+
+  icons:render:
+    summary: Regenerates every icon from build/appicon*.svg and build/appicon.icon (macOS only; commit the result)
+    desc: |
+      appicon.svg        full-bleed master -> appicon.png (Apple grid, 824 px tile in 1024)
+                         -> darwin/icons.icns, and the 32/48/64/256 px .ico entries
+      appicon-16/24.svg  hand-hinted small sizes for the .ico
+      appicon.icon       Icon Composer layers -> darwin/Assets.car (macOS 26 Dock icon)
+      Needs rsvg-convert and ImageMagick (brew install librsvg imagemagick) and Xcode's actool.
+    dir: build
+    platforms: [darwin]
+    cmds:
+      - rsvg-convert -w 824 -h 824 appicon.svg -o .appicon-tile.png
+      - >-
+        magick .appicon-tile.png \( +clone -background black -shadow 30x10+0+10 \)
+        +swap -background none -layers merge +repage -gravity center -extent 1024x1024
+        -define png:exclude-chunk=date,time PNG32:appicon.png
+      - rm -f .appicon-tile.png
       - wails3 generate icons -input appicon.png -macfilename darwin/icons.icns -windowsfilename windows/icon.ico -iconcomposerinput appicon.icon -macassetdir darwin
+      # Replace Wails' downscaled .ico with crisp per-size renders (16 and 24 are hand-hinted).
+      - mkdir -p .ico
+      - rsvg-convert -w 16 -h 16 appicon-16.svg -o .ico/16.png
+      - rsvg-convert -w 24 -h 24 appicon-24.svg -o .ico/24.png
+      - for s in 32 48 64 256; do rsvg-convert -w $s -h $s appicon.svg -o .ico/$s.png; done
+      - magick .ico/16.png .ico/24.png .ico/32.png .ico/48.png .ico/64.png .ico/256.png windows/icon.ico
+      - rm -rf .ico
 
   dev:frontend:
     summary: Runs the frontend in development mode

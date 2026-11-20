@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 )
 
@@ -81,6 +82,22 @@ func (c Catalog) T(key string, args ...string) string {
 		s = strings.ReplaceAll(s, "{"+args[i]+"}", args[i+1])
 	}
 	return s
+}
+
+// Plural returns the plural category of n in lang, "one" or "other": the
+// suffix of a counted message's keys ("count.done.one", "count.done.other").
+// English uses "one" for 1 only; French for 0 and 1 ("0 réussi").
+func Plural(lang Lang, n int) string {
+	if n == 1 || (lang == FR && n == 0) {
+		return "one"
+	}
+	return "other"
+}
+
+// N returns the counted message key.one or key.other for n in lang, with {n}
+// and the other placeholders in args replaced.
+func (c Catalog) N(lang Lang, key string, n int, args ...string) string {
+	return c.T(key+"."+Plural(lang, n), append([]string{"n", strconv.Itoa(n)}, args...)...)
 }
 
 // FromTags returns FR if the first non-empty tag is a French locale ("fr",

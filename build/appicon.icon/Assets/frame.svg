@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Icon Composer layer: the film frame of ../../appicon.svg (keep in sync). -->
+  <defs>
+    <mask id="holes">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <g fill="#000">
+        <rect x="240" y="268" width="56" height="40" rx="10"/>
+        <rect x="344" y="268" width="56" height="40" rx="10"/>
+        <rect x="448" y="268" width="56" height="40" rx="10"/>
+        <rect x="240" y="716" width="56" height="40" rx="10"/>
+        <rect x="344" y="716" width="56" height="40" rx="10"/>
+        <rect x="448" y="716" width="56" height="40" rx="10"/>
+      </g>
+    </mask>
+  </defs>
+  <g fill="#ffffff" mask="url(#holes)" transform="translate(12 0)">
+    <rect x="136" y="232" width="440" height="112" rx="40"/>
+    <rect x="136" y="680" width="440" height="112" rx="40"/>
+    <rect x="136" y="232" width="80" height="560" rx="40"/>
+  </g>
+</svg>

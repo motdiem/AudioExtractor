@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!--
+    AudioExtractor app icon master: a waveform coming out of a film frame.
+    Full-bleed 1024 tile. `wails3 task common:icons:render` turns it into
+    appicon.png (macOS grid, with margin), icons.icns, icon.ico and, through
+    the Icon Composer layers in appicon.icon/, Assets.car.
+    Keep the frame and wave shapes in sync with appicon.icon/Assets/*.svg.
+  -->
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f6cff"/>
+      <stop offset="1" stop-color="#6a35d9"/>
+    </linearGradient>
+    <mask id="holes">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <g fill="#000">
+        <rect x="240" y="268" width="56" height="40" rx="10"/>
+        <rect x="344" y="268" width="56" height="40" rx="10"/>
+        <rect x="448" y="268" width="56" height="40" rx="10"/>
+        <rect x="240" y="716" width="56" height="40" rx="10"/>
+        <rect x="344" y="716" width="56" height="40" rx="10"/>
+        <rect x="448" y="716" width="56" height="40" rx="10"/>
+      </g>
+    </mask>
+  </defs>
+  <rect width="1024" height="1024" rx="228" fill="url(#plate)"/>
+  <!-- Film frame: top and bottom strips with sprocket holes, closed on the left, open on the right. -->
+  <g id="frame" fill="#ffffff" mask="url(#holes)" transform="translate(12 0)">
+    <rect x="136" y="232" width="440" height="112" rx="40"/>
+    <rect x="136" y="680" width="440" height="112" rx="40"/>
+    <rect x="136" y="232" width="80" height="560" rx="40"/>
+  </g>
+  <!-- Waveform: bars that grow as they leave the frame. -->
+  <g id="wave" fill="#ffc53d" transform="translate(12 0)">
+    <rect x="272" y="452" width="80" height="120" rx="40"/>
+    <rect x="400" y="402" width="80" height="220" rx="40"/>
+    <rect x="528" y="362" width="80" height="300" rx="40"/>
+    <rect x="656" y="252" width="80" height="520" rx="40"/>
+    <rect x="784" y="342" width="80" height="340" rx="40"/>
+  </g>
+</svg>
