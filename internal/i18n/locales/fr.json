@@ -1,0 +1,20 @@
+{
+  "app.title": "AudioExtractor",
+  "drop.title": "Déposez un MP4 ici",
+  "drop.hint": "ou cliquez pour choisir un fichier",
+  "drop.release": "Relâchez pour extraire l’audio",
+  "save.title": "Enregistrer l’audio sous",
+  "save.filter": "Audio M4A",
+  "pick.title": "Choisissez un fichier vidéo ou audio",
+  "working.title": "Extraction de l’audio…",
+  "working.hint": "Cela prend généralement une seconde.",
+  "done.title": "Terminé",
+  "done.hint": "Enregistré sous {name}",
+  "done.show": "Afficher dans le Finder",
+  "done.again": "Extraire un autre fichier",
+  "error.title": "Un problème est survenu",
+  "error.again": "Réessayer",
+  "error.failed": "L’audio n’a pas pu être extrait de ce fichier. Essayez un autre fichier.",
+  "error.no-audio": "Cette vidéo n’a pas de son, il n’y a donc rien à extraire.",
+  "error.batch-unsupported": "Déposez un seul fichier à la fois pour l’instant."
+}
