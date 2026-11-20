@@ -63,6 +63,7 @@ Neither app is signed with a paid identity, so each OS stops a first launch. The
 ## Pitfalls
 
 - **Sign last.** Anything added to the bundle after `codesign` (a licence file, say) breaks `--verify --deep`. Copy first, sign last. The verification runs on the unzipped copy for the same reason.
+- **Read-only licence files.** Files copied from Go's module cache are mode 0444, and the copies in the bundle kept it: `xattr -cr` then failed with "Permission denied" and the release stopped. The task now runs `chmod -R u+w` on the bundle before signing.
 - **`go:embed` cannot use `..`.** The notice lives at the repo root, so the embed lives in the root `main` package.
 - **Zips and signatures.** `zip` can drop symlinks and extended attributes inside an `.app`; `ditto -c -k` is the right tool for the macOS one. For the Windows one, plain `zip -X` is fine.
 - **`dist/` is rebuilt from scratch every time** (`rm -rf dist`), and the release removes the universal binary from `bin/` afterwards so `wails3 task dev` still works (chapter 1).
