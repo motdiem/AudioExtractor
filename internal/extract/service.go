@@ -202,6 +202,15 @@ func (s *Service) currentFormat() Format {
 // Lang returns the UI language code ("en" or "fr").
 func (s *Service) Lang() string { return string(s.cfg.Lang) }
 
+// Version is the build version shown on the idle screen and in "Copy
+// details": `git describe` stamped at build time, or "dev".
+func (s *Service) Version() string {
+	if s.cfg.Version == "" {
+		return "dev"
+	}
+	return s.cfg.Version
+}
+
 // Messages returns the UI catalog for the current language.
 func (s *Service) Messages() map[string]string { return s.msgs }
 
@@ -457,12 +466,8 @@ func (s *Service) setDetails(outs ...Outcome) {
 // detailsText is what a person pastes into an email to us: a short header and
 // the raw ffmpeg log. The header carries only the file name; the log is ffmpeg's own and may include the path.
 func (s *Service) detailsText(o Outcome) string {
-	version := s.cfg.Version
-	if version == "" {
-		version = "dev"
-	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "AudioExtractor %s\nOS: %s/%s\n", version, runtime.GOOS, runtime.GOARCH)
+	fmt.Fprintf(&b, "AudioExtractor %s\nOS: %s/%s\n", s.Version(), runtime.GOOS, runtime.GOARCH)
 	if o.Source != "" {
 		fmt.Fprintf(&b, "File: %s\n", filepath.Base(o.Source))
 	}

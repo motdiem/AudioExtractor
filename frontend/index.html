@@ -10,6 +10,8 @@
 <main>
     <!-- Idle: the drop zone. Wails adds .file-drop-target-active while a file hovers over it. -->
     <section id="idle" class="screen">
+        <!-- The app name in the user's language, when it differs from "AudioExtractor". -->
+        <p id="subtitle" class="subtitle" hidden></p>
         <button id="drop" class="zone" type="button" data-file-drop-target>
             <svg class="icon" viewBox="0 0 48 48" aria-hidden="true">
                 <path d="M8 24v0M14 18v12M20 12v24M26 17v14M32 21v6M38 24v0"/>
@@ -17,10 +19,14 @@
             <span class="title" data-i18n="drop.title"></span>
             <span class="hint" data-i18n="drop.hint"></span>
         </button>
-        <!-- Output format, remembered across launches by the Go service. -->
-        <div id="format" class="seg" role="radiogroup" data-i18n-label="format.label">
-            <button type="button" role="radio" data-format="m4a" data-i18n="format.m4a"></button>
-            <button type="button" role="radio" data-format="mp3" data-i18n="format.mp3"></button>
+        <div class="foot">
+            <!-- Output format, remembered across launches by the Go service. -->
+            <div id="format" class="seg" role="radiogroup" data-i18n-label="format.label">
+                <button type="button" role="radio" data-format="m4a" data-i18n="format.m4a"></button>
+                <button type="button" role="radio" data-format="mp3" data-i18n="format.mp3"></button>
+            </div>
+            <!-- Build version (git describe), so we can tell which build someone has. -->
+            <span id="version" class="version"></span>
         </div>
     </section>
 
@@ -58,8 +64,8 @@
 
     <section id="error" class="screen" hidden>
         <p class="title" data-i18n="error.title"></p>
-        <p class="hint" id="error-message"></p>
-        <div class="actions">
+        <p class="hint message" id="error-message"></p>
+        <div class="actions row">
             <button id="retry" class="primary" type="button" data-i18n="error.again"></button>
             <button id="copy-details" class="link" type="button" data-i18n="copy.details"></button>
         </div>
