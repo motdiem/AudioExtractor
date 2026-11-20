@@ -27,7 +27,7 @@ func makeAudioWith(t *testing.T, name string, seconds, channels int, codec, rate
 	args := []string{"-hide_banner", "-loglevel", "error", "-y",
 		"-f", "lavfi", "-i", "sine=frequency=440:duration=" + strconv.Itoa(seconds),
 		"-ac", strconv.Itoa(channels), "-ar", rate, "-c:a", codec, path}
-	if out, err := exec.Command(ffmpegPath(t), args...).CombinedOutput(); err != nil {
+	if out, err := exec.Command(fixtureFFmpeg(t), args...).CombinedOutput(); err != nil {
 		t.Fatalf("generating %s: %v\n%s", name, err, out)
 	}
 	return path

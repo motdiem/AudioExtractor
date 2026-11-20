@@ -285,7 +285,7 @@ func TestCopyDetailsWithoutAnErrorFails(t *testing.T) {
 // runFFmpegForTest generates a fixture with ffmpeg.
 func runFFmpegForTest(t *testing.T, args ...string) {
 	t.Helper()
-	out, err := runFFmpeg(context.Background(), ffmpegPath(t), append([]string{"-loglevel", "error", "-y"}, args...)...)
+	out, err := runFFmpeg(context.Background(), fixtureFFmpeg(t), append([]string{"-loglevel", "error", "-y"}, args...)...)
 	if err != nil {
 		t.Fatalf("generating fixture: %v\n%s", err, out)
 	}

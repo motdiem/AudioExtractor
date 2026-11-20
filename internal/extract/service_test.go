@@ -14,16 +14,24 @@ import (
 	"github.com/motdiem/AudioExtractor/internal/i18n"
 )
 
-// ffmpegPath finds ffmpeg for the tests: $AUDIOEXTRACTOR_FFMPEG, else PATH.
-// (The bundled build is wired in once internal/ffmpeg lands.)
-func ffmpegPath(t *testing.T) string {
+// ffmpegPath finds the ffmpeg the service under test uses:
+// $AUDIOEXTRACTOR_FFMPEG, else PATH. Point it at the slim bundled build to
+// test what ships.
+func ffmpegPath(t *testing.T) string { return findFFmpeg(t, "AUDIOEXTRACTOR_FFMPEG") }
+
+// fixtureFFmpeg finds the ffmpeg that generates test clips:
+// $AUDIOEXTRACTOR_FIXTURE_FFMPEG, else PATH. The slim bundled build has no
+// lavfi and no video encoders, so it cannot make fixtures.
+func fixtureFFmpeg(t *testing.T) string { return findFFmpeg(t, "AUDIOEXTRACTOR_FIXTURE_FFMPEG") }
+
+func findFFmpeg(t *testing.T, env string) string {
 	t.Helper()
-	if p := os.Getenv("AUDIOEXTRACTOR_FFMPEG"); p != "" {
+	if p := os.Getenv(env); p != "" {
 		return p
 	}
 	p, err := exec.LookPath("ffmpeg")
 	if err != nil {
-		t.Skip("ffmpeg not found: set AUDIOEXTRACTOR_FFMPEG or put ffmpeg on PATH")
+		t.Skipf("ffmpeg not found: set %s or put ffmpeg on PATH", env)
 	}
 	return p
 }
@@ -105,7 +113,7 @@ func makeClip(t *testing.T, name, audio string) string {
 		args = append(args, "-c:a", audio)
 	}
 	args = append(args, path)
-	if out, err := exec.Command(ffmpegPath(t), args...).CombinedOutput(); err != nil {
+	if out, err := exec.Command(fixtureFFmpeg(t), args...).CombinedOutput(); err != nil {
 		t.Fatalf("generating %s: %v\n%s", name, err, out)
 	}
 	return path
