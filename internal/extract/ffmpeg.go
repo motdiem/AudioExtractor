@@ -53,11 +53,34 @@ func probe(ctx context.Context, bin, src string) (probeInfo, error) {
 	}
 	info.anyStream = anyStreamRe.MatchString(log)
 	info.duration = parseDuration(log)
-	var exitErr *exec.ExitError
-	if runErr != nil && !errors.As(runErr, &exitErr) {
-		return info, runErr // ffmpeg did not run at all
+	if !probeRan(runErr) {
+		// ffmpeg did not start, crashed or was killed: whatever the log
+		// says, it says nothing reliable about the file.
+		return info, fmt.Errorf("ffmpeg probe failed: %w", runErr)
 	}
 	return info, nil
+}
+
+// probeRan reports whether `ffmpeg -i file` ran to its normal end. With no
+// output file ffmpeg always fails: exit code 1 when it could read the input
+// ("At least one output file must be specified"), or the low byte of an
+// AVERROR (183 for "Invalid data found", 254 for a missing file) when it
+// could not. Those are evidence about the file. A signal (a crash, the OOM
+// killer, kill -9) or a Windows exception code such as 0xC0000005 is
+// evidence about ffmpeg, and must not be blamed on the file.
+func probeRan(err error) bool {
+	if err == nil {
+		return true
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		return false // did not start
+	}
+	if !exitErr.Exited() {
+		return false // killed by a signal
+	}
+	code := exitErr.ExitCode()
+	return code >= 1 && code <= 255
 }
 
 // parseDuration reads "Duration: 00:01:02.50" from ffmpeg's log.
@@ -148,7 +171,7 @@ func extract(ctx context.Context, bin, src, dest string, f Format, onProgress fu
 		if ctx.Err() != nil {
 			return log, KindCancelled, err
 		}
-		return log, KindFailed, err // ffmpeg could not even start
+		return log, KindFailed, err // ffmpeg could not start, crashed or was killed
 	}
 	if !info.anyStream {
 		// ffmpeg opened nothing: damaged or unfinished media, or not media.
