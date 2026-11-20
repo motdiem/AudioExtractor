@@ -129,7 +129,7 @@ var (
 // probeOut inspects a file with `ffmpeg -i` (no ffprobe needed).
 func probeOut(t *testing.T, path string) (log string) {
 	t.Helper()
-	out, _ := exec.Command(ffmpegPath(t), "-hide_banner", "-i", path).CombinedOutput()
+	out, _ := exec.Command(fixtureFFmpeg(t), "-hide_banner", "-i", path).CombinedOutput()
 	return string(out)
 }
 
