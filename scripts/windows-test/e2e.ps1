@@ -22,6 +22,8 @@ function App { Get-Process AudioExtractor -ErrorAction SilentlyContinue | Where-
 # Starts a long MP3 into $out and returns once ffmpeg is running.
 function Start-LongMp3($out) {
   Remove-Item -Force -LiteralPath $out -ErrorAction SilentlyContinue
+  # Back to the drop zone from whatever screen an earlier step left.
+  if (((AE screen) -join "`n") -notlike "*id='drop'*") { AE click again; AE click summary-again; AE click retry; AE cancel }
   AE format MP3; AE click drop; AE open $D long.mp4; AE save $out
   for ($i = 0; $i -lt 40 -and -not (Ffmpegs); $i++) { Start-Sleep -Milliseconds 250 }
   Start-Sleep 1
@@ -74,7 +76,9 @@ if (Want 'busy') {
   $box
   Check 'busy-message' ($box -like '*Busy*')
   Check 'second-process-exited' ($second.WaitForExit(5000))
-  Check 'job-still-running' ((Ffmpegs).Count -eq 1)
+  # long.mp4 encodes in about a minute here; the Busy box steps can outlast it.
+  $out = (Ffmpegs).Count -eq 1 -or (Test-Path "$D\busy.mp3")
+  Check 'job-not-disturbed' $out '(still encoding, or finished busy.mp3)'
   AE click cancel; Start-Sleep 2
 }
 if (Want 'close') {
