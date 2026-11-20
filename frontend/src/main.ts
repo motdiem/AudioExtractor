@@ -70,6 +70,7 @@ function onState(e: StateEvent) {
             break;
         case "error":
             $("error-message").textContent = e.message;
+            $("copy-details").textContent = t("copy.details");
             break;
     }
     show(e.phase);
@@ -116,6 +117,20 @@ async function main() {
     drop.addEventListener("click", pick);
     $("retry").addEventListener("click", pick);
     $("cancel").addEventListener("click", () => void Extract.Cancel());
+    // Copy details: Go owns the text (header + raw ffmpeg log) and the native
+    // clipboard; we only confirm with "Copied" for a moment.
+    const copy = $<HTMLButtonElement>("copy-details");
+    let copiedTimer: number | undefined;
+    copy.addEventListener("click", async () => {
+        try {
+            await Extract.CopyDetails();
+        } catch {
+            return; // nothing sensible to tell a non-technical user
+        }
+        copy.textContent = t("copy.done");
+        window.clearTimeout(copiedTimer);
+        copiedTimer = window.setTimeout(() => (copy.textContent = t("copy.details")), 2000);
+    });
     $("again").addEventListener("click", () => show("idle"));
     $("reveal").addEventListener("click", async () => {
         await Extract.Reveal(output);
