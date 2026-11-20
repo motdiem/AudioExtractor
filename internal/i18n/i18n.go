@@ -2,6 +2,10 @@
 //
 // Both catalogs live in locales/*.json and must have identical keys (enforced by a test).
 // Placeholders look like {name}.
+//
+// A key may have per-OS variants, "key@mac" and "key@windows" (say, "Show in
+// Finder" and "Show in Explorer"). Load keeps the one for the running OS
+// under the plain key.
 package i18n
 
 import (
@@ -9,6 +13,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"runtime"
 	"strings"
 )
 
@@ -42,7 +47,27 @@ func Load(lang Lang) Catalog {
 	if err := json.Unmarshal(data, &c); err != nil {
 		panic(fmt.Sprintf("i18n: bad catalog %q: %v", lang, err))
 	}
-	return c
+	return forOS(c, runtime.GOOS)
+}
+
+// forOS sets every "key" from its "key@<os>" variant for goos ("windows",
+// else "mac": we only ship for those two) and drops the variants.
+func forOS(c Catalog, goos string) Catalog {
+	suffix := "@mac"
+	if goos == "windows" {
+		suffix = "@windows"
+	}
+	out := Catalog{}
+	for k, v := range c {
+		if base, _, ok := strings.Cut(k, "@"); ok {
+			if strings.HasSuffix(k, suffix) {
+				out[base] = v
+			}
+			continue
+		}
+		out[k] = v
+	}
+	return out
 }
 
 // T returns the message for key with {placeholders} replaced by the

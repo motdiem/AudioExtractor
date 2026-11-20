@@ -1,5 +1,7 @@
 {
   "app.title": "AudioExtractor",
+  "webview2.title": "AudioExtractor ne peut pas démarrer",
+  "webview2.message": "AudioExtractor a besoin de Microsoft WebView2 Runtime, qui n’est pas installé sur cet ordinateur.\n\nInstallez-le depuis {url} (sans droits d’administrateur), puis rouvrez AudioExtractor.\n\nOuvrir la page de téléchargement maintenant ?",
   "drop.title": "Déposez des fichiers ou un dossier",
   "drop.hint": "ou cliquez pour choisir des fichiers",
   "drop.release": "Relâchez pour extraire l’audio",
@@ -9,7 +11,8 @@
   "working.hint": "Cela prend généralement une seconde.",
   "done.title": "Terminé",
   "done.hint": "Enregistré sous {name}",
-  "done.show": "Afficher dans le Finder",
+  "done.show@mac": "Afficher dans le Finder",
+  "done.show@windows": "Afficher dans l’Explorateur",
   "done.again": "Extraire un autre fichier",
   "error.title": "Un problème est survenu",
   "error.again": "Réessayer",
