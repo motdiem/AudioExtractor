@@ -152,11 +152,13 @@ type Service struct {
 	cfg  Config
 	msgs i18n.Catalog
 
-	busy sync.Mutex // held for the whole of a Run
+	busy sync.Mutex // held for the whole of a job (Pick, Run, TryRun)
 
-	mu     sync.Mutex // guards cancel and format
+	mu     sync.Mutex // guards cancel, closing and format
 	cancel context.CancelFunc
-	format Format
+	// closing is set once the app quits: no new job may start.
+	closing bool
+	format  Format
 	// details is the "Copy details" text for the error on screen.
 	details string
 }
@@ -243,8 +245,15 @@ func (s *Service) accept(paths []string, f Format) (items []Item, emptyFolders i
 	return items, emptyFolders, nil
 }
 
-// Pick opens the file picker, then runs the extraction on the choice.
+// Pick opens the file picker, then runs the extraction on the choice. The
+// service is claimed before the picker opens, so a batch arriving meanwhile
+// (a launch with files) is the one refused.
 func (s *Service) Pick() Result {
+	ctx, ok := s.begin()
+	if !ok {
+		return Result{Cancelled: true}
+	}
+	defer s.end()
 	paths, err := s.cfg.Port.ChooseInputs(PickRequest{Title: s.msgs.T("pick.title")})
 	if err != nil {
 		return s.fail(KindFailed, err, "")
@@ -252,29 +261,89 @@ func (s *Service) Pick() Result {
 	if len(paths) == 0 {
 		return Result{Cancelled: true}
 	}
-	return s.Run(paths, "")
+	return s.run(ctx, paths, "")
 }
 
 // Run extracts the audio of paths into the given format ("m4a" or "mp3"; ""
 // means the remembered choice). Folders expand to their media files. A single
 // item opens the Save dialog; several open a folder dialog and run one after
-// another. Cancelling a dialog returns to idle.
+// another. Cancelling a dialog returns to idle. If another job is running,
+// the busy message is shown and nothing is done.
 func (s *Service) Run(paths []string, format string) Result {
-	if !s.busy.TryLock() {
+	ctx, ok := s.begin()
+	if !ok {
 		return Result{Cancelled: true}
 	}
-	defer s.busy.Unlock()
+	defer s.end()
+	return s.run(ctx, paths, format)
+}
 
+// TryRun starts Run in the background and returns at once: true if the job
+// started, false if another one was running (the busy message is then
+// shown). Checking and claiming are one step, so two batches arriving
+// together (a drop and a launch) can never both start.
+func (s *Service) TryRun(paths []string, format string) bool {
+	ctx, ok := s.begin()
+	if !ok {
+		return false
+	}
+	go func() {
+		defer s.end()
+		s.run(ctx, paths, format)
+	}()
+	return true
+}
+
+// begin claims the service for one job and makes the context Cancel stops.
+// When the service is taken it tells the user (see refuse) and returns false.
+// After ServiceShutdown nothing starts, silently.
+func (s *Service) begin() (context.Context, bool) {
+	if !s.busy.TryLock() {
+		s.mu.Lock()
+		closing := s.closing
+		s.mu.Unlock()
+		if !closing {
+			s.refuse()
+		}
+		return nil, false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closing {
+		s.busy.Unlock()
+		return nil, false
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancel = cancel
+	return ctx, true
+}
+
+// end releases the service claimed by begin.
+func (s *Service) end() {
+	s.mu.Lock()
+	if s.cancel != nil {
+		s.cancel()
+		s.cancel = nil
+	}
+	s.mu.Unlock()
+	s.busy.Unlock()
+}
+
+// refuse tells the user a new job cannot start while one is running. The
+// message is the same whatever asked: a drop, the picker or a launch.
+func (s *Service) refuse() {
+	// A failure to show it leaves nothing better to do: the job goes on.
+	_ = s.cfg.Port.ShowInfo(s.msgs.T("busy.title"), s.msgs.T("busy.message"))
+}
+
+func (s *Service) run(ctx context.Context, paths []string, format string) Result {
+	if ctx.Err() != nil {
+		return Result{Cancelled: true} // quit while the picker was open
+	}
 	f, ok := ParseFormat(format)
 	if !ok {
 		f = s.currentFormat()
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	s.mu.Lock()
-	s.cancel = cancel
-	s.mu.Unlock()
-	defer cancel()
 
 	items, empty, err := s.accept(paths, f)
 	switch {
@@ -290,14 +359,29 @@ func (s *Service) Run(paths []string, format string) Result {
 	return s.runBatch(ctx, items, f)
 }
 
-// Busy reports whether a Run is in progress (a Run started now would be
-// refused).
-func (s *Service) Busy() bool {
-	if s.busy.TryLock() {
-		s.busy.Unlock()
-		return false
+// shutdownWait bounds how long quitting waits for a job to clean up.
+const shutdownWait = 2 * time.Second
+
+// ServiceShutdown is called by Wails when the app quits (Cmd+Q, closing the
+// window, logging out). It cancels the job in progress, if any, and waits up
+// to shutdownWait for it to finish cleaning up: ffmpeg killed, the
+// .audioextractor-*.part file removed. Without this, ffmpeg was orphaned and
+// the temporary file stayed in the user's folder. A job stuck in a native
+// dialog cannot be waited for; the app then quits anyway.
+func (s *Service) ServiceShutdown() error {
+	s.mu.Lock()
+	s.closing = true
+	s.mu.Unlock()
+	s.Cancel()
+	deadline := time.Now().Add(shutdownWait)
+	for !s.busy.TryLock() {
+		if time.Now().After(deadline) {
+			return errors.New("extraction still running at quit")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
-	return true
+	s.busy.Unlock()
+	return nil
 }
 
 // Cancel stops the running extraction, if any: ffmpeg is killed, the partial

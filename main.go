@@ -55,18 +55,12 @@ func main() {
 	// Files the OS opens us with (Dock icon, "Open with", command line, a
 	// second launch) are gathered into batches, held until the frontend says
 	// it is ready, then sent down the same path as a window drop.
-	var app *application.App
 	launcher := launch.New(launchDebounce, func(paths []string) {
-		if svc.Busy() {
-			// Simplest robust option: tell the user instead of queueing.
-			msgs := svc.Messages()
-			app.Dialog.Info().SetTitle(msgs["busy.title"]).SetMessage(msgs["busy.message"]).Show()
-			return
-		}
-		go svc.Run(paths, "") // "" = the remembered format
+		// Busy: the service tells the user instead of queueing.
+		svc.TryRun(paths, "") // "" = the remembered format
 	})
 
-	app = application.New(application.Options{
+	app := application.New(application.Options{
 		Name:        "AudioExtractor",
 		Description: "Extract the audio from a Zoom recording",
 		Services:    []application.Service{application.NewService(svc)},
@@ -143,7 +137,7 @@ func main() {
 			return
 		}
 		// The handler must return quickly: the dialog and ffmpeg run on their own goroutine.
-		go svc.Run(files, "") // "" = the remembered format
+		svc.TryRun(files, "") // "" = the remembered format
 	})
 
 	if err := app.Run(); err != nil {

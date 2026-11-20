@@ -17,6 +17,8 @@ type Port interface {
 	Reveal(path string) error
 	// CopyText puts text on the system clipboard.
 	CopyText(text string) error
+	// ShowInfo shows a short native message (the busy notice).
+	ShowInfo(title, message string) error
 }
 
 // FolderRequest describes the folder dialog: outputs of a batch go into the

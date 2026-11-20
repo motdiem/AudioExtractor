@@ -62,6 +62,13 @@ func (p *Port) ChooseSaveFile(req extract.SaveRequest) (string, error) {
 
 func (p *Port) Reveal(path string) error { return reveal(path) }
 
+// ShowInfo returns at once: callers include window event handlers, which
+// must not wait for the user to dismiss a dialog.
+func (p *Port) ShowInfo(title, message string) error {
+	go p.App.Dialog.Info().SetTitle(title).SetMessage(message).Show()
+	return nil
+}
+
 // CopyText puts text on the clipboard through Wails, which uses the native
 // clipboard on each OS (more reliable than the webview's, which needs a user
 // gesture and permission).
