@@ -14,6 +14,7 @@ includes:
   common: ./build/Taskfile.yml
   windows: ./build/windows/Taskfile.yml
   darwin: ./build/darwin/Taskfile.yml
+  ffmpeg: ./scripts/ffmpeg/Taskfile.yml
 
 tasks:
   build:
@@ -44,6 +45,8 @@ tasks:
     cmds:
       - rm -rf dist
       - mkdir -p dist
+      # The app embeds internal/ffmpeg/bin/darwin/ffmpeg; build it if missing or stale.
+      - task: ffmpeg:mac:ensure
       - task: darwin:package:universal
       - ditto -c -k --keepParent "{{.BIN_DIR}}/{{.APP_NAME}}.app" "dist/{{.APP_NAME}}-mac.zip"
       - task: windows:build

@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"errors"
 	"log"
 	"os/exec"
 
@@ -10,6 +11,7 @@ import (
 
 	"github.com/motdiem/AudioExtractor/internal/desktop"
 	"github.com/motdiem/AudioExtractor/internal/extract"
+	"github.com/motdiem/AudioExtractor/internal/ffmpeg"
 	"github.com/motdiem/AudioExtractor/internal/i18n"
 	"github.com/motdiem/AudioExtractor/internal/settings"
 )
@@ -28,8 +30,7 @@ func main() {
 		store = settings.New(path)
 	}
 	svc := extract.New(extract.Config{
-		// TODO(#3): use ffmpeg.Path()
-		Locate: func() (string, error) { return exec.LookPath("ffmpeg") },
+		Locate: locateFFmpeg,
 		Port:   port,
 		Emit: func(name string, data any) {
 			application.Get().Event.Emit(name, data)
@@ -78,4 +79,15 @@ func main() {
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+// locateFFmpeg returns the ffmpeg bundled in the binary. In a dev build made
+// without running `wails3 task ffmpeg:mac` first, nothing is embedded, so it
+// falls back to an ffmpeg on PATH.
+func locateFFmpeg() (string, error) {
+	p, err := ffmpeg.Path()
+	if errors.Is(err, ffmpeg.ErrNotBundled) {
+		return exec.LookPath("ffmpeg")
+	}
+	return p, err
 }
