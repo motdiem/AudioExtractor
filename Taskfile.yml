@@ -49,6 +49,8 @@ tasks:
       - task: ffmpeg:mac:ensure
       - task: darwin:package:universal
       - ditto -c -k --keepParent "{{.BIN_DIR}}/{{.APP_NAME}}.app" "dist/{{.APP_NAME}}-mac.zip"
+      # Same for the Windows exe, which embeds internal/ffmpeg/bin/windows/ffmpeg.exe.
+      - task: ffmpeg:windows:ensure
       - task: windows:build
         vars:
           ARCH: amd64

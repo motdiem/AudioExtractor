@@ -22,12 +22,11 @@ MACOS_MIN="13.0"
 OUT_DIR="${REPO_ROOT}/internal/ffmpeg/bin/darwin"
 export MACOSX_DEPLOYMENT_TARGET="$MACOS_MIN"
 
-# Hash of everything that defines the build. Stored next to the binary (as a
-# dot-file, so go:embed ignores it) to detect a stale binary after a version bump.
+# See stamp_is_current in lib.sh.
 STAMP="${OUT_DIR}/.build-inputs.sha256"
-INPUTS_HASH="$(cd "${REPO_ROOT}/scripts/ffmpeg" && cat config.sh lib.sh build-mac.sh | shasum -a 256 | cut -d' ' -f1)"
 if [[ "${1:-}" == "--is-current" ]]; then
-  [[ -x "${OUT_DIR}/ffmpeg" && -x "${OUT_DIR}/arm64/ffmpeg" && -x "${OUT_DIR}/amd64/ffmpeg" && -f "$STAMP" && "$(cat "$STAMP")" == "$INPUTS_HASH" ]]
+  stamp_is_current "$STAMP" build-mac.sh \
+    "${OUT_DIR}/ffmpeg" "${OUT_DIR}/arm64/ffmpeg" "${OUT_DIR}/amd64/ffmpeg"
   exit
 fi
 
@@ -82,4 +81,4 @@ check_license "${OUT_DIR}/ffmpeg"
 lipo -info "${OUT_DIR}/ffmpeg"
 "${OUT_DIR}/ffmpeg" -hide_banner -version | head -1
 ls -l "${OUT_DIR}/ffmpeg" "${OUT_DIR}"/*/ffmpeg | awk '{print $5, $NF}'
-echo "$INPUTS_HASH" > "$STAMP"
+write_stamp "$STAMP" build-mac.sh
