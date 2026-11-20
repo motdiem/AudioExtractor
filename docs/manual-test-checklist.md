@@ -52,5 +52,5 @@ mkdir "2026-11-20 10.00.00 Weekly sync"; cp call.mp4 "2026-11-20 10.00.00 Weekly
 - [ ] Open with > Choose another app > AudioExtractor: same.
 - [ ] **[VM]** App running: launch it again with a file: no second window, the running one shows the Save dialog.
 - [ ] **[VM]** App busy: launch it again with a file: "Busy" message, the second process exits, the job continues.
-- [ ] Close the window during an MP3: no `ffmpeg.exe` left in Task Manager, no `.part` file left.
+- [ ] **[VM]** Close the window during an MP3: no `ffmpeg.exe` left, no `.part` file left. `taskkill /F` on the app also ends ffmpeg; only a hidden `.part` remains.
 - [ ] WebView2 missing (dev build only): `scripts/windows-test/build-test-exe.sh --dev`, then `vm.sh start -Env AUDIOEXTRACTOR_FAKE_NO_WEBVIEW2=1`: a French or English message box with the download link; Yes opens it; the app exits.
