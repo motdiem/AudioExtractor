@@ -118,7 +118,9 @@ func main() {
 		MaxWidth:      420,
 		MaxHeight:     320,
 		DisableResize: true,
-		URL:           "/",
+		// A fixed window has nothing to maximise (or, on macOS, zoom to).
+		MaximiseButtonState: application.ButtonDisabled,
+		URL:                 "/",
 		// Files dropped on an element marked data-file-drop-target raise
 		// WindowFilesDropped below.
 		EnableFileDrop: true,
