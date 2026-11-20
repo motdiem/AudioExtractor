@@ -2,7 +2,8 @@
 // executable and makes it runnable.
 //
 // The binary for the current OS is embedded at compile time from
-// bin/<GOOS>/ (macOS: the bin/darwin/<GOARCH> slice; built by `wails3 task ffmpeg:mac`, and `ffmpeg:windows` later).
+// bin/<GOOS>/ (macOS: the bin/darwin/<GOARCH> slice built by `wails3 task
+// ffmpeg:mac`; Windows: bin/windows/ffmpeg.exe built by `wails3 task ffmpeg:windows`).
 // Path writes it once to the per-user cache directory, in a folder named after
 // the binary's SHA-256, so a new app version never runs a stale copy and no
 // admin rights are needed:
@@ -21,12 +22,13 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 // ErrNotBundled is returned by Path when this build of the app has no ffmpeg
 // embedded (the binary was not built before compiling, or the OS is not
 // supported yet). Callers such as tests may fall back to ffmpeg on PATH.
-var ErrNotBundled = errors.New("ffmpeg: no ffmpeg binary bundled in this build (run `wails3 task ffmpeg:mac` and rebuild)")
+var ErrNotBundled = errors.New("ffmpeg: no ffmpeg binary bundled in this build (run `wails3 task ffmpeg:mac` or `ffmpeg:windows` and rebuild)")
 
 // appCacheDir is the folder under os.UserCacheDir() that holds our files.
 const appCacheDir = "AudioExtractor"
@@ -121,18 +123,50 @@ func (in installer) install() (string, error) {
 		return "", fmt.Errorf("ffmpeg: hash binary: %w", err)
 	}
 
-	if err := os.Rename(tmpName, final); err != nil {
-		// Another process may have installed it meanwhile (on Windows a
-		// running exe cannot be replaced). Accept its copy if it is valid.
-		if valid(final, stamp) {
+	// Another process (or goroutine) may be installing the same file right
+	// now. On Windows a rename onto a file that is open (being hashed, run or
+	// replaced) fails with "Access is denied", and the other installer may not
+	// have written its stamp yet. So keep retrying for a short while, and
+	// accept the other copy as soon as it is valid.
+	othersDone := func() bool { return valid(final, stamp) }
+	if err := retry(func() error { return os.Rename(tmpName, final) }, othersDone); err != nil {
+		if errors.Is(err, errSuperseded) {
 			return final, nil
 		}
 		return "", fmt.Errorf("ffmpeg: install binary: %w", err)
 	}
-	if err := writeAtomic(stamp, []byte(installedSum)); err != nil {
+	if err := retry(func() error { return writeAtomic(stamp, []byte(installedSum)) }, othersDone); err != nil {
+		if errors.Is(err, errSuperseded) {
+			return final, nil
+		}
 		return "", fmt.Errorf("ffmpeg: write stamp: %w", err)
 	}
 	return final, nil
+}
+
+// installRetryWindow bounds how long install waits for a concurrent installer.
+const installRetryWindow = 3 * time.Second
+
+// errSuperseded: retry gave up on op because done() reported success.
+var errSuperseded = errors.New("ffmpeg: installed concurrently")
+
+// retry runs op until it succeeds, returning nil. Between attempts it returns
+// errSuperseded once done() is true, or op's last error when the window closes.
+func retry(op func() error, done func() bool) error {
+	deadline := time.Now().Add(installRetryWindow)
+	for {
+		err := op()
+		if err == nil {
+			return nil
+		}
+		if done() {
+			return errSuperseded
+		}
+		if time.Now().After(deadline) {
+			return err
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
 }
 
 // valid reports whether path exists and matches the hash recorded in stamp.

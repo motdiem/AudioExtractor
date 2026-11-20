@@ -82,7 +82,7 @@ func main() {
 }
 
 // locateFFmpeg returns the ffmpeg bundled in the binary. In a dev build made
-// without running `wails3 task ffmpeg:mac` first, nothing is embedded, so it
+// without running `wails3 task ffmpeg:mac` (or `ffmpeg:windows`) first, nothing is embedded, so it
 // falls back to an ffmpeg on PATH.
 func locateFFmpeg() (string, error) {
 	p, err := ffmpeg.Path()
