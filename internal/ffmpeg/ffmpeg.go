@@ -2,7 +2,7 @@
 // executable and makes it runnable.
 //
 // The binary for the current OS is embedded at compile time from
-// bin/<GOOS>/ (built by `wails3 task ffmpeg:mac`, and `ffmpeg:windows` later).
+// bin/<GOOS>/ (macOS: the bin/darwin/<GOARCH> slice; built by `wails3 task ffmpeg:mac`, and `ffmpeg:windows` later).
 // Path writes it once to the per-user cache directory, in a folder named after
 // the binary's SHA-256, so a new app version never runs a stale copy and no
 // admin rights are needed:

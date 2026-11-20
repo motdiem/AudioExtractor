@@ -5,7 +5,11 @@
 #   scripts/ffmpeg/build-mac.sh --is-current  # exit 0 if the binary exists and
 #                                             # was built from the current scripts
 #
-# Output: internal/ffmpeg/bin/darwin/ffmpeg (git-ignored, embedded by Go).
+# Output (git-ignored):
+#   internal/ffmpeg/bin/darwin/ffmpeg         universal binary (the build product)
+#   internal/ffmpeg/bin/darwin/{arm64,amd64}/ffmpeg
+#                                             thin slices, each embedded only by
+#                                             the Go build of that architecture
 # Needs: Xcode command line tools, nasm (x86 assembly), pkg-config.
 
 set -euo pipefail
@@ -23,7 +27,7 @@ export MACOSX_DEPLOYMENT_TARGET="$MACOS_MIN"
 STAMP="${OUT_DIR}/.build-inputs.sha256"
 INPUTS_HASH="$(cd "${REPO_ROOT}/scripts/ffmpeg" && cat config.sh lib.sh build-mac.sh | shasum -a 256 | cut -d' ' -f1)"
 if [[ "${1:-}" == "--is-current" ]]; then
-  [[ -x "${OUT_DIR}/ffmpeg" && -f "$STAMP" && "$(cat "$STAMP")" == "$INPUTS_HASH" ]]
+  [[ -x "${OUT_DIR}/ffmpeg" && -x "${OUT_DIR}/arm64/ffmpeg" && -x "${OUT_DIR}/amd64/ffmpeg" && -f "$STAMP" && "$(cat "$STAMP")" == "$INPUTS_HASH" ]]
   exit
 fi
 
@@ -63,8 +67,19 @@ strip -x "$tmp" 2>/dev/null || strip "$tmp"
 codesign --force --sign - "$tmp"
 mv -f "$tmp" "${OUT_DIR}/ffmpeg"
 
+# Thin slices for go:embed. A universal Wails app is two Go binaries glued by
+# lipo; embedding the universal ffmpeg in each would ship it twice. lipo -thin
+# keeps each slice's own signature.
+for pair in arm64:arm64 amd64:x86_64; do
+  goarch="${pair%%:*}"; arch="${pair#*:}"
+  mkdir -p "${OUT_DIR}/${goarch}"
+  lipo "${OUT_DIR}/ffmpeg" -thin "$arch" -output "${OUT_DIR}/${goarch}/.ffmpeg.tmp"
+  codesign --verify "${OUT_DIR}/${goarch}/.ffmpeg.tmp"
+  mv -f "${OUT_DIR}/${goarch}/.ffmpeg.tmp" "${OUT_DIR}/${goarch}/ffmpeg"
+done
+
 check_license "${OUT_DIR}/ffmpeg"
 lipo -info "${OUT_DIR}/ffmpeg"
 "${OUT_DIR}/ffmpeg" -hide_banner -version | head -1
-ls -lh "${OUT_DIR}/ffmpeg" | awk '{print "size: " $5}'
+ls -l "${OUT_DIR}/ffmpeg" "${OUT_DIR}"/*/ffmpeg | awk '{print $5, $NF}'
 echo "$INPUTS_HASH" > "$STAMP"

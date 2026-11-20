@@ -1,22 +1,16 @@
 package ffmpeg
 
 import (
-	"embed"
 	"fmt"
 	"os/exec"
 )
 
-// The whole folder is embedded (not bin/darwin/ffmpeg directly) so the package
-// still compiles on a fresh checkout where the binary has not been built yet:
-// the committed README.md keeps the pattern non-empty.
-//
-//go:embed bin/darwin
-var binFS embed.FS
+// binFS and binDir come from embed_darwin_{arm64,amd64}.go.
 
 const binaryName = "ffmpeg"
 
 func embeddedBinary() []byte {
-	data, err := binFS.ReadFile("bin/darwin/" + binaryName)
+	data, err := binFS.ReadFile(binDir + "/" + binaryName)
 	if err != nil {
 		return nil
 	}
