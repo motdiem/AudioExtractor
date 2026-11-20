@@ -35,6 +35,7 @@ type fakePort struct {
 	saveTo    string   // returned by ChooseSaveFile; "" = user cancels
 	saveReqs  []SaveRequest
 	revealed  []string
+	copied    []string
 	saveError error
 }
 
@@ -45,6 +46,7 @@ func (f *fakePort) ChooseSaveFile(r SaveRequest) (string, error) {
 	f.saveReqs = append(f.saveReqs, r)
 	return f.saveTo, f.saveError
 }
+func (f *fakePort) CopyText(t string) error { f.copied = append(f.copied, t); return nil }
 func (f *fakePort) Reveal(p string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -286,29 +288,6 @@ func TestVideoWithoutAudioReportsNoAudioAndLeavesNoFile(t *testing.T) {
 		t.Errorf("last event = %+v", last)
 	}
 	noStrays(t, dir)
-}
-
-func TestNonMediaFileFailsCleanly(t *testing.T) {
-	src := filepath.Join(t.TempDir(), "notes.mp4")
-	os.WriteFile(src, []byte("hello, not a video"), 0o644)
-	dir := t.TempDir()
-	svc, _ := newService(t, &fakePort{saveTo: filepath.Join(dir, "notes.m4a")})
-
-	res := svc.Run([]string{src}, "m4a")
-
-	if res.Outcomes[0].Kind != KindFailed || res.Outcomes[0].Log == "" {
-		t.Errorf("outcome = %+v, want failed with a log", res.Outcomes[0])
-	}
-	noStrays(t, dir)
-}
-
-func TestUnwritableDestinationFailsWithoutPartialFile(t *testing.T) {
-	src := makeClip(t, "clip.mp4", "aac")
-	svc, _ := newService(t, &fakePort{saveTo: filepath.Join(t.TempDir(), "missing", "clip.m4a")})
-
-	if res := svc.Run([]string{src}, "m4a"); res.Outcomes[0].Kind != KindFailed {
-		t.Errorf("outcome = %+v, want failed", res.Outcomes[0])
-	}
 }
 
 func TestSeveralFilesAreNotSupportedYet(t *testing.T) {

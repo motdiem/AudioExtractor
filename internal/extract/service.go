@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -47,14 +48,21 @@ func (f Format) ext() string { return "." + string(f) }
 type ErrorKind string
 
 const (
-	KindFailed           ErrorKind = "failed"
-	KindNoAudio          ErrorKind = "no-audio"
-	KindBatchUnsupported ErrorKind = "batch-unsupported"
-	KindCancelled        ErrorKind = "cancelled"
+	KindFailed                ErrorKind = "failed" // fallback when nothing more specific is known
+	KindNoAudio               ErrorKind = "no-audio"
+	KindUnreadable            ErrorKind = "unreadable" // damaged, truncated or still being written
+	KindNotMedia              ErrorKind = "not-media"
+	KindDestinationUnwritable ErrorKind = "destination-unwritable" // permission, disk full, read-only or offline folder
+	KindOutputLocked          ErrorKind = "output-locked"          // the file to replace is open elsewhere
+	KindBatchUnsupported      ErrorKind = "batch-unsupported"      // removed by #8
+	KindCancelled             ErrorKind = "cancelled"              // silent: no message
 )
 
 // ErrorKinds that must have a message in every catalog (cancelled is silent).
-var MessageKinds = []ErrorKind{KindFailed, KindNoAudio, KindBatchUnsupported}
+var MessageKinds = []ErrorKind{
+	KindFailed, KindNoAudio, KindUnreadable, KindNotMedia,
+	KindDestinationUnwritable, KindOutputLocked, KindBatchUnsupported,
+}
 
 // Phase is the stage the window should show.
 type Phase string
@@ -115,6 +123,8 @@ type Config struct {
 	// Settings remembers the chosen format across launches. May be nil
 	// (the choice then lasts for the session only).
 	Settings *settings.Store
+	// Version is the app version shown in "Copy details" (default "dev").
+	Version string
 }
 
 // Service is the extraction application service.
@@ -127,6 +137,8 @@ type Service struct {
 	mu     sync.Mutex // guards cancel and format
 	cancel context.CancelFunc
 	format Format
+	// details is the "Copy details" text for the error on screen.
+	details string
 }
 
 // New returns a Service.
@@ -300,6 +312,7 @@ func (s *Service) runOne(ctx context.Context, it Item, f Format) Result {
 		return Result{Cancelled: true, Outcomes: []Outcome{{Source: it.Path, Kind: KindCancelled, Log: log}}}
 	case err != nil:
 		out := Outcome{Source: it.Path, Kind: kind, Message: s.msgs.T("error." + string(kind)), Log: log}
+		s.setDetails(out, err)
 		s.emit(StateEvent{Phase: PhaseError, Kind: kind, Message: out.Message})
 		return Result{Outcomes: []Outcome{out}}
 	}
@@ -322,6 +335,49 @@ func (s *Service) fail(kind ErrorKind, err error, src string) Result {
 	if err != nil {
 		log = err.Error()
 	}
+	out := Outcome{Source: src, Kind: kind, Message: msg, Log: log}
+	s.setDetails(out, nil)
 	s.emit(StateEvent{Phase: PhaseError, Kind: kind, Message: msg})
-	return Result{Outcomes: []Outcome{{Source: src, Kind: kind, Message: msg, Log: log}}}
+	return Result{Outcomes: []Outcome{out}}
+}
+
+// setDetails remembers the text "Copy details" will put on the clipboard.
+func (s *Service) setDetails(o Outcome, cause error) {
+	d := s.detailsText(o, cause)
+	s.mu.Lock()
+	s.details = d
+	s.mu.Unlock()
+}
+
+// detailsText is what a person pastes into an email to us: a short header and
+// the raw ffmpeg log. The header carries only the file name; the log is ffmpeg's own and may include the path.
+func (s *Service) detailsText(o Outcome, cause error) string {
+	version := s.cfg.Version
+	if version == "" {
+		version = "dev"
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "AudioExtractor %s\nOS: %s/%s\n", version, runtime.GOOS, runtime.GOARCH)
+	if o.Source != "" {
+		fmt.Fprintf(&b, "File: %s\n", filepath.Base(o.Source))
+	}
+	fmt.Fprintf(&b, "Error: %s\n", o.Kind)
+	if cause != nil {
+		fmt.Fprintf(&b, "Cause: %v\n", cause)
+	}
+	b.WriteString("\n--- ffmpeg log ---\n")
+	b.WriteString(strings.TrimSpace(o.Log))
+	b.WriteString("\n")
+	return b.String()
+}
+
+// CopyDetails puts the details of the error on screen on the clipboard.
+func (s *Service) CopyDetails() error {
+	s.mu.Lock()
+	d := s.details
+	s.mu.Unlock()
+	if d == "" {
+		return errors.New("no error to copy")
+	}
+	return s.cfg.Port.CopyText(d)
 }

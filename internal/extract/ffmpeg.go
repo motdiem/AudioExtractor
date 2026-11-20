@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -52,8 +53,9 @@ func probe(ctx context.Context, bin, src string) (probeInfo, error) {
 	}
 	info.anyStream = anyStreamRe.MatchString(log)
 	info.duration = parseDuration(log)
-	if !info.anyStream && runErr != nil && !strings.Contains(log, "At least one output file") {
-		return info, fmt.Errorf("ffmpeg could not read %s", filepath.Base(src))
+	var exitErr *exec.ExitError
+	if runErr != nil && !errors.As(runErr, &exitErr) {
+		return info, runErr // ffmpeg did not run at all
 	}
 	return info, nil
 }
@@ -121,28 +123,40 @@ func parseProgressLine(line string) (outTime time.Duration, end, ok bool) {
 // holds a partial file, and the temp file is removed on every failure path,
 // cancellation included. onProgress receives 0-100 and may be nil.
 func extract(ctx context.Context, bin, src, dest string, f Format, onProgress func(percent int)) (log string, kind ErrorKind, err error) {
+	// Pre-checks in Go, cheapest and most certain evidence first.
+	if sf, err := os.Open(src); err != nil {
+		return "", classifyReadError(err), err
+	} else {
+		sf.Close()
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(dest), ".audioextractor-*.part")
+	if err != nil {
+		// Whatever the cause, a file cannot be created there.
+		kind := classifyWriteError(err, false)
+		if kind == KindFailed {
+			kind = KindDestinationUnwritable
+		}
+		return "", kind, err
+	}
+	tmpPath := tmp.Name()
+	tmp.Close()
+	defer os.Remove(tmpPath) // no-op after a successful rename
+
 	info, err := probe(ctx, bin, src)
 	log = info.log
 	if err != nil {
 		if ctx.Err() != nil {
 			return log, KindCancelled, err
 		}
-		return log, KindFailed, err
+		return log, KindFailed, err // ffmpeg could not even start
 	}
 	if !info.anyStream {
-		return log, KindFailed, fmt.Errorf("no streams found in %s", filepath.Base(src))
+		// ffmpeg opened nothing: damaged or unfinished media, or not media.
+		return log, classifyBroken(src, sniffFile(src)), fmt.Errorf("no streams found in %s", filepath.Base(src))
 	}
 	if info.audioCodec == "" {
 		return log, KindNoAudio, fmt.Errorf("no audio stream in %s", filepath.Base(src))
 	}
-
-	tmp, err := os.CreateTemp(filepath.Dir(dest), ".audioextractor-*.part")
-	if err != nil {
-		return log, KindFailed, err
-	}
-	tmpPath := tmp.Name()
-	tmp.Close()
-	defer os.Remove(tmpPath) // no-op after a successful rename
 
 	var codecArgs []string
 	var container string
@@ -173,13 +187,27 @@ func extract(ctx context.Context, bin, src, dest string, f Format, onProgress fu
 	runLog, err := runWithProgress(ctx, bin, report, args...)
 	log += runLog
 	if err != nil {
-		if ctx.Err() != nil {
+		switch {
+		case ctx.Err() != nil:
 			return log, KindCancelled, ctx.Err()
+		case logSaysWriteFailed(runLog):
+			return log, KindDestinationUnwritable, err
+		case logSaysInputBroken(runLog):
+			return log, classifyBroken(src, sniffFile(src)), err
 		}
 		return log, KindFailed, err
 	}
+	if logSaysPartial(runLog) {
+		// ffmpeg exited 0 but only saw part of the file.
+		return log, KindUnreadable, fmt.Errorf("%s is incomplete", filepath.Base(src))
+	}
+	_, statErr := os.Stat(dest)
 	if err := os.Rename(tmpPath, dest); err != nil {
-		return log, KindFailed, err
+		kind := classifyWriteError(err, statErr == nil)
+		if kind == KindFailed {
+			kind = KindDestinationUnwritable
+		}
+		return log, kind, err
 	}
 	return log, "", nil
 }

@@ -13,8 +13,8 @@
   "done.again": "Extraire un autre fichier",
   "error.title": "Un problème est survenu",
   "error.again": "Réessayer",
-  "error.failed": "L’audio n’a pas pu être extrait de ce fichier. Essayez un autre fichier.",
-  "error.no-audio": "Cette vidéo n’a pas de son, il n’y a donc rien à extraire.",
+  "error.failed": "L’audio n’a pas pu être extrait de ce fichier. Réessayez, ou essayez un autre fichier.",
+  "error.no-audio": "Cette vidéo n’a pas de son, il n’y a donc rien à extraire. Vérifiez que l’enregistrement a été fait avec le son.",
   "error.batch-unsupported": "Déposez un seul fichier à la fois pour l’instant.",
   "save.filter.m4a": "Audio M4A",
   "save.filter.mp3": "Audio MP3",
@@ -22,5 +22,11 @@
   "format.m4a": "M4A",
   "format.mp3": "MP3",
   "working.progress": "{percent} %",
-  "working.cancel": "Annuler"
+  "working.cancel": "Annuler",
+  "error.unreadable": "Ce fichier est abîmé ou pas encore terminé. S’il vient de Zoom, attendez que Zoom ait fini de convertir l’enregistrement, puis réessayez. Si vous l’avez téléchargé, téléchargez-le à nouveau.",
+  "error.not-media": "Ce fichier n’est pas un enregistrement vidéo ou audio. Choisissez un MP4 ou un autre enregistrement.",
+  "error.destination-unwritable": "L’audio n’a pas pu être enregistré dans ce dossier. Choisissez un autre dossier, comme Documents, et vérifiez qu’il reste de la place.",
+  "error.output-locked": "Un fichier portant ce nom est ouvert dans un autre programme. Fermez-le, ou enregistrez sous un autre nom, puis réessayez.",
+  "copy.details": "Copier les détails",
+  "copy.done": "Copié"
 }

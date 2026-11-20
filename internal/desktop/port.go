@@ -3,6 +3,8 @@
 package desktop
 
 import (
+	"errors"
+
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"github.com/motdiem/AudioExtractor/internal/extract"
@@ -45,3 +47,13 @@ func (p *Port) ChooseSaveFile(req extract.SaveRequest) (string, error) {
 }
 
 func (p *Port) Reveal(path string) error { return reveal(path) }
+
+// CopyText puts text on the clipboard through Wails, which uses the native
+// clipboard on each OS (more reliable than the webview's, which needs a user
+// gesture and permission).
+func (p *Port) CopyText(text string) error {
+	if !p.App.Clipboard.SetText(text) {
+		return errors.New("could not write to the clipboard")
+	}
+	return nil
+}

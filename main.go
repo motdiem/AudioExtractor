@@ -19,6 +19,9 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// version is set at release time with -ldflags "-X main.version=...".
+var version = "dev"
+
 func main() {
 	port := &desktop.Port{}
 	// A settings problem must never stop the app: without a store the format
@@ -36,6 +39,7 @@ func main() {
 		},
 		Lang:     i18n.Detect(),
 		Settings: store,
+		Version:  version,
 	})
 
 	app := application.New(application.Options{
