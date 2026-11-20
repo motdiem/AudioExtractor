@@ -17,12 +17,20 @@
             <span class="title" data-i18n="drop.title"></span>
             <span class="hint" data-i18n="drop.hint"></span>
         </button>
+        <!-- Output format, remembered across launches by the Go service. -->
+        <div id="format" class="seg" role="radiogroup" data-i18n-label="format.label">
+            <button type="button" role="radio" data-format="m4a" data-i18n="format.m4a"></button>
+            <button type="button" role="radio" data-format="mp3" data-i18n="format.mp3"></button>
+        </div>
     </section>
 
     <section id="working" class="screen" hidden>
         <p class="title" data-i18n="working.title"></p>
-        <div class="bar"><div class="bar-fill"></div></div>
-        <p class="hint" data-i18n="working.hint"></p>
+        <div class="bar" id="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div class="bar-fill" id="bar-fill"></div></div>
+        <p class="hint" id="progress-text"></p>
+        <div class="actions">
+            <button id="cancel" class="link" type="button" data-i18n="working.cancel"></button>
+        </div>
     </section>
 
     <section id="done" class="screen" hidden>

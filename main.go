@@ -11,6 +11,7 @@ import (
 	"github.com/motdiem/AudioExtractor/internal/desktop"
 	"github.com/motdiem/AudioExtractor/internal/extract"
 	"github.com/motdiem/AudioExtractor/internal/i18n"
+	"github.com/motdiem/AudioExtractor/internal/settings"
 )
 
 // The built frontend (frontend/dist) is embedded into the binary.
@@ -20,6 +21,12 @@ var assets embed.FS
 
 func main() {
 	port := &desktop.Port{}
+	// A settings problem must never stop the app: without a store the format
+	// choice simply lasts for the session.
+	var store *settings.Store
+	if path, err := settings.DefaultPath(); err == nil {
+		store = settings.New(path)
+	}
 	svc := extract.New(extract.Config{
 		// TODO(#3): use ffmpeg.Path()
 		Locate: func() (string, error) { return exec.LookPath("ffmpeg") },
@@ -27,7 +34,8 @@ func main() {
 		Emit: func(name string, data any) {
 			application.Get().Event.Emit(name, data)
 		},
-		Lang: i18n.Detect(),
+		Lang:     i18n.Detect(),
+		Settings: store,
 	})
 
 	app := application.New(application.Options{
@@ -64,7 +72,7 @@ func main() {
 			return
 		}
 		// The handler must return quickly: the dialog and ffmpeg run on their own goroutine.
-		go svc.Run(files, string(extract.FormatM4A))
+		go svc.Run(files, "") // "" = the remembered format
 	})
 
 	if err := app.Run(); err != nil {

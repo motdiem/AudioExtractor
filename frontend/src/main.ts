@@ -7,6 +7,7 @@ import * as Extract from "../bindings/github.com/motdiem/AudioExtractor/internal
 type Phase = "idle" | "working" | "done" | "error";
 interface StateEvent {
     phase: Phase;
+    percent: number; // 0-100, or -1 when unknown
     name: string;
     output: string;
     message: string;
@@ -28,7 +29,40 @@ function t(key: string, args: Record<string, string> = {}): string {
     return s;
 }
 
+// Quick jobs (an M4A copy takes a fraction of a second) must not flash the
+// progress screen, so "working" only becomes visible after this delay.
+const WORKING_DELAY_MS = 500;
+let workingTimer: number | undefined;
+let workingShown = false;
+
+function showProgress(percent: number) {
+    const bar = $("bar");
+    const known = percent >= 0;
+    bar.classList.toggle("known", known);
+    if (known) {
+        bar.style.setProperty("--p", String(percent / 100));
+        bar.setAttribute("aria-valuenow", String(percent));
+    } else {
+        bar.removeAttribute("aria-valuenow");
+    }
+    $("progress-text").textContent = known ? t("working.progress", { percent: String(percent) }) : "";
+}
+
 function onState(e: StateEvent) {
+    if (e.phase === "working") {
+        showProgress(e.percent);
+        if (!workingShown && workingTimer === undefined) {
+            workingTimer = window.setTimeout(() => {
+                workingTimer = undefined;
+                workingShown = true;
+                show("working");
+            }, WORKING_DELAY_MS);
+        }
+        return; // stay on the current screen until the delay has passed
+    }
+    window.clearTimeout(workingTimer);
+    workingTimer = undefined;
+    workingShown = false;
     switch (e.phase) {
         case "done":
             output = e.output;
@@ -58,6 +92,22 @@ async function main() {
         title.textContent = drop.classList.contains("file-drop-target-active") ? t("drop.release") : idleTitle;
     }).observe(drop, { attributes: true, attributeFilter: ["class"] });
 
+    document.querySelectorAll<HTMLElement>("[data-i18n-label]").forEach((el) => {
+        el.setAttribute("aria-label", t(el.dataset.i18nLabel!));
+    });
+
+    // Format toggle: Go owns the value (and remembers it); we just mirror it.
+    const buttons = document.querySelectorAll<HTMLButtonElement>("#format button");
+    const markFormat = (f: string) =>
+        buttons.forEach((b) => b.setAttribute("aria-checked", String(b.dataset.format === f)));
+    markFormat(await Extract.Format());
+    buttons.forEach((b) =>
+        b.addEventListener("click", async () => {
+            await Extract.SetFormat(b.dataset.format!);
+            markFormat(await Extract.Format());
+        }),
+    );
+
     Events.On("extract:state", (ev: { data: StateEvent }) => onState(ev.data));
 
     // Clicking the zone: Go opens the picker, then the Save dialog, and emits
@@ -65,6 +115,7 @@ async function main() {
     const pick = () => void Extract.Pick();
     drop.addEventListener("click", pick);
     $("retry").addEventListener("click", pick);
+    $("cancel").addEventListener("click", () => void Extract.Cancel());
     $("again").addEventListener("click", () => show("idle"));
     $("reveal").addEventListener("click", async () => {
         await Extract.Reveal(output);
