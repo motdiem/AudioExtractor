@@ -48,12 +48,17 @@ func (p *Port) ChooseFolder(req extract.FolderRequest) (string, error) {
 }
 
 func (p *Port) ChooseSaveFile(req extract.SaveRequest) (string, error) {
-	d := p.App.Dialog.SaveFile().
-		SetMessage(req.Title).
-		SetDirectory(req.Dir).
-		SetFilename(req.Name).
-		CanCreateDirectories(true).
-		AddFilter(req.FilterName, "*."+req.Extension)
+	// Windows shows the title, macOS the message: set both. v3's builder has
+	// no SetTitle for the Save dialog, so the options carry it.
+	d := p.App.Dialog.SaveFile()
+	d.SetOptions(&application.SaveFileDialogOptions{
+		Title:                req.Title,
+		Message:              req.Title,
+		Directory:            req.Dir,
+		Filename:             req.Name,
+		CanCreateDirectories: true,
+	})
+	d.AddFilter(req.FilterName, "*."+req.Extension)
 	if p.Window != nil {
 		d.AttachToWindow(p.Window)
 	}

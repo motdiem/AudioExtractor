@@ -13,6 +13,8 @@ export interface StateEvent {
     failed: number;
     stopped: boolean;
     failures: { name: string; message: string }[] | null;
+    title: string; // summary only: Go resolves the plurals
+    counts: string;
     percent: number; // 0-100, or -1 when unknown
     name: string;
     output: string;
@@ -62,14 +64,9 @@ function showCount(e: StateEvent) {
 
 function showSummary(e: StateEvent) {
     output = e.output;
-    const title = e.stopped
-        ? t("summary.title.stopped", { n: String(e.index), total: String(e.total) })
-        : e.failed === 0
-          ? t("summary.title.ok", { done: String(e.done) })
-          : t("summary.title.mixed", { done: String(e.done), failed: String(e.failed) });
-    $("summary-title").textContent = title;
-    // The title already says it unless the batch was stopped.
-    $("summary-counts").textContent = e.stopped ? t("summary.counts", { done: String(e.done), failed: String(e.failed) }) : "";
+    $("summary-title").textContent = e.title;
+    // Set for a stopped batch only: otherwise the title already says it.
+    $("summary-counts").textContent = e.counts;
     const list = $("failures");
     list.replaceChildren(
         ...(e.failures ?? []).map((f) => {

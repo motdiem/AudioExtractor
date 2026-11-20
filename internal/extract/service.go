@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -97,6 +98,11 @@ type StateEvent struct {
 	Failed   int       `json:"failed"`
 	Stopped  bool      `json:"stopped"`
 	Failures []Failure `json:"failures"`
+	// Title and Counts are the summary's text, plurals already resolved
+	// ("1 file done", "2 réussis, 1 en échec"). Counts is set when the
+	// title does not already say it (a stopped batch).
+	Title  string `json:"title"`
+	Counts string `json:"counts"`
 }
 
 // Failure is one failed file in a batch summary.
@@ -527,12 +533,29 @@ func (s *Service) runBatch(ctx context.Context, items []Item, f Format) Result {
 		s.emit(StateEvent{Phase: PhaseIdle})
 		return res
 	}
+	title, counts := s.summaryText(done, len(failures), len(items), stopped)
 	s.emit(StateEvent{
 		Phase: PhaseSummary, Index: done + len(failures), Total: len(items),
 		Percent: 100, Output: firstOut, Done: done, Failed: len(failures),
-		Stopped: stopped, Failures: failures,
+		Stopped: stopped, Failures: failures, Title: title, Counts: counts,
 	})
 	return res
+}
+
+// summaryText is the batch summary's title and, for a stopped batch, the
+// counts line under it.
+func (s *Service) summaryText(done, failed, total int, stopped bool) (title, counts string) {
+	lang := s.cfg.Lang
+	both := s.msgs.T("summary.counts",
+		"done", s.msgs.N(lang, "count.done", done),
+		"failed", s.msgs.N(lang, "count.failed", failed))
+	switch {
+	case stopped:
+		return s.msgs.T("summary.title.stopped", "n", strconv.Itoa(done+failed), "total", strconv.Itoa(total)), both
+	case failed == 0:
+		return s.msgs.N(lang, "summary.title.ok", done), ""
+	}
+	return both, ""
 }
 
 // sameFile reports whether a and b are the same file: the same file on disk

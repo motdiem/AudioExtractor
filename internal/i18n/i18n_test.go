@@ -67,3 +67,54 @@ func TestTReplacesPlaceholders(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+// Counted messages come in pairs: every key.one has a key.other and back.
+func TestPluralKeysArePaired(t *testing.T) {
+	for _, lang := range Langs {
+		c := Load(lang)
+		for k := range c {
+			for _, pair := range [][2]string{{".one", ".other"}, {".other", ".one"}} {
+				if strings.HasSuffix(k, pair[0]) {
+					if _, ok := c[strings.TrimSuffix(k, pair[0])+pair[1]]; !ok {
+						t.Errorf("%s: %q has no %s form", lang, k, pair[1])
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestPlural(t *testing.T) {
+	cases := []struct {
+		lang Lang
+		key  string
+		n    int
+		want string
+	}{
+		{EN, "count.done", 1, "1 done"},
+		{EN, "summary.title.ok", 1, "1 file done"},
+		{EN, "summary.title.ok", 2, "2 files done"},
+		{EN, "summary.title.ok", 0, "0 files done"},
+		{FR, "count.done", 0, "0 réussi"},
+		{FR, "count.done", 1, "1 réussi"},
+		{FR, "count.done", 2, "2 réussis"},
+		{FR, "count.failed", 1, "1 en échec"},
+		{FR, "summary.title.ok", 1, "1 fichier terminé"},
+	}
+	for _, c := range cases {
+		if got := Load(c.lang).N(c.lang, c.key, c.n); got != c.want {
+			t.Errorf("%s %s %d: %q, want %q", c.lang, c.key, c.n, got, c.want)
+		}
+	}
+}
+
+// French puts a narrow no-break space (U+202F) before : ; ? ! and %, and
+// inside « », never a plain space or a regular no-break space.
+func TestFrenchTypography(t *testing.T) {
+	bad := regexp.MustCompile(`[ \x{00A0}][:;?!%»]|«[ \x{00A0}]|[^\x{202F}][;?!%»]|«[^\x{202F}]`)
+	for k, v := range Load(FR) {
+		if m := bad.FindString(v); m != "" {
+			t.Errorf("fr %q: %q in %q needs U+202F", k, m, v)
+		}
+	}
+}
