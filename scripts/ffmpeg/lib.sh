@@ -90,8 +90,30 @@ build_ffmpeg() {
   echo "${src}/ffmpeg"
 }
 
+# Build stamps: a hash of everything that defines a platform's build, stored
+# next to its binaries (as a dot-file, so go:embed ignores it) to detect a
+# stale binary after a version bump or a script change.
+#
+# inputs_hash SCRIPT -> SHA-256 of config.sh, lib.sh and the platform SCRIPT.
+inputs_hash() {
+  (cd "${REPO_ROOT}/scripts/ffmpeg" && cat config.sh lib.sh "$1" | shasum -a 256 | cut -d' ' -f1)
+}
+
+# stamp_is_current STAMP SCRIPT FILE... -> exit 0 if every FILE exists and
+# STAMP holds the current inputs_hash of SCRIPT.
+stamp_is_current() {
+  local stamp="$1" script="$2" f; shift 2
+  for f in "$@"; do [[ -f "$f" ]] || return 1; done
+  [[ -f "$stamp" && "$(cat "$stamp")" == "$(inputs_hash "$script")" ]]
+}
+
+# write_stamp STAMP SCRIPT: record that the binaries match the current inputs.
+write_stamp() {
+  inputs_hash "$2" > "$1"
+}
+
 # check_license FFMPEG_BINARY: refuse anything that is not plain LGPL.
-# Only works for binaries the host can run.
+# Only works for binaries the host can run (see check_license_static).
 check_license() {
   local bin="$1" conf
   conf="$("$bin" -hide_banner -buildconf 2>&1)"
@@ -100,4 +122,21 @@ check_license() {
   fi
   "$bin" -hide_banner -L 2>&1 | grep -q 'GNU Lesser General Public' \
     || die "$bin does not report an LGPL licence"
+}
+
+# check_license_static FFMPEG_SRC_DIR FFMPEG_BINARY: the same guard for a
+# binary the host cannot run (the Windows exe): read the build's config.h and
+# look for the licence string compiled into the binary.
+check_license_static() {
+  local src="$1" bin="$2" opt
+  for opt in GPL NONFREE VERSION3; do
+    grep -q "^#define CONFIG_${opt} 0\$" "${src}/config.h" \
+      || die "$bin was configured with a GPL/nonfree/version3 option (CONFIG_${opt})"
+  done
+  grep -q '^#define FFMPEG_LICENSE "LGPL version 2.1 or later"$' "${src}/config.h" \
+    || die "$bin is not configured as LGPL v2.1+"
+  LC_ALL=C grep -aq 'LGPL version 2.1 or later' "$bin" \
+    || die "$bin does not contain the LGPL licence string"
+  ! LC_ALL=C grep -aqE -- '--enable-(gpl|nonfree|version3)' "$bin" \
+    || die "$bin was configured with a GPL/nonfree/version3 option"
 }

@@ -2,10 +2,11 @@ package ffmpeg
 
 import "embed"
 
-// Placeholder until ticket #4 cross-compiles ffmpeg for Windows: the folder
-// holds only README.md, so embeddedBinary returns nil and Path returns
-// ErrNotBundled. Once bin/windows/ffmpeg.exe exists at build time it is
-// embedded and unpacked with no code change here.
+// bin/windows/ffmpeg.exe is the statically linked x64 build from
+// `wails3 task ffmpeg:windows` (cross-compiled on the Mac with mingw-w64).
+// The folder (not the file) is embedded so a checkout without the built exe
+// still compiles: the committed README.md keeps the pattern non-empty, and
+// embeddedBinary then returns nil, so Path returns ErrNotBundled.
 //
 //go:embed bin/windows
 var binFS embed.FS

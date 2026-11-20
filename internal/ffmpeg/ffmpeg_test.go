@@ -200,7 +200,7 @@ func TestConcurrentInstalls(t *testing.T) {
 func TestBundledFFmpegRuns(t *testing.T) {
 	p, err := Path()
 	if errors.Is(err, ErrNotBundled) {
-		t.Skip("no ffmpeg bundled in this build; run `wails3 task ffmpeg:mac` first")
+		t.Skip("no ffmpeg bundled in this build; run `wails3 task ffmpeg:mac` or `ffmpeg:windows` first")
 	}
 	if err != nil {
 		t.Fatal(err)
